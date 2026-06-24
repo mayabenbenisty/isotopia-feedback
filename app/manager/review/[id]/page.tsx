@@ -1,0 +1,446 @@
+'use client'
+import { useEffect, useState, useCallback } from 'react'
+import { useRouter, useParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import { ScoreSelector } from '@/components/ScoreSelector'
+import type { Review, Profile, ReviewPeriod, Goal } from '@/lib/types'
+import { REVIEW_CATEGORIES, OPEN_QUESTIONS_MANAGER, FIT_OPTIONS } from '@/lib/types'
+
+type FullReview = Review & { employee: Profile; period: ReviewPeriod }
+
+export default function ManagerReviewPage() {
+  const router = useRouter()
+  const { id } = useParams<{ id: string }>()
+  const [review, setReview] = useState<FullReview | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [activeSection, setActiveSection] = useState(0)
+
+  useEffect(() => { loadReview() }, [id])
+
+  async function loadReview() {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('reviews')
+      .select('*, employee:profiles!reviews_employee_id_fkey(*), period:review_periods(*)')
+      .eq('id', id)
+      .single()
+    if (data) setReview(data as FullReview)
+    setLoading(false)
+  }
+
+  const autoSave = useCallback(async (updated: FullReview) => {
+    setSaving(true)
+    const supabase = createClient()
+    await supabase.from('reviews').update({
+      manager_scores: updated.manager_scores,
+      manager_open: updated.manager_open,
+      goals: updated.goals,
+      values_assessment: updated.values_assessment,
+      fit_assessment: updated.fit_assessment,
+      final_score: updated.final_score,
+      final_score_override: updated.final_score_override,
+      manager_summary: updated.manager_summary,
+      status: updated.status,
+    }).eq('id', id)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }, [id])
+
+  function update(patch: Partial<FullReview>) {
+    if (!review) return
+    const updated = { ...review, ...patch }
+    setReview(updated)
+    autoSave(updated)
+  }
+
+  function updateScore(cat: string, item: string, score: number) {
+    if (!review) return
+    const key = `${cat}__${item}`
+    update({ manager_scores: { ...review.manager_scores, [key]: score } })
+  }
+
+  function updateOpen(field: string, value: string) {
+    if (!review) return
+    update({ manager_open: { ...review.manager_open, [field]: value } })
+  }
+
+  function calcAutoScore(): 1 | 2 | 3 {
+    if (!review) return 2
+    const scores = Object.values(review.manager_scores).filter(s => s > 0)
+    if (!scores.length) return 2
+    const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+    if (avg >= 3.5) return 3
+    if (avg >= 2.5) return 2
+    return 1
+  }
+
+  function updateGoal(index: number, patch: Partial<Goal>) {
+    if (!review) return
+    const goals = [...(review.goals || [])]
+    goals[index] = { ...goals[index], ...patch }
+    update({ goals })
+  }
+
+  function addGoal() {
+    if (!review) return
+    const goals = [...(review.goals || []), { id: Date.now().toString(), title: '', description: '', achieved: null, comment: '' }]
+    update({ goals })
+  }
+
+  function removeGoal(index: number) {
+    if (!review) return
+    const goals = [...(review.goals || [])]
+    goals.splice(index, 1)
+    update({ goals })
+  }
+
+  async function approveReview() {
+    if (!review) return
+    setSaving(true)
+    const supabase = createClient()
+    const finalScore = review.final_score_override ? review.final_score : calcAutoScore()
+    await supabase.from('reviews').update({
+      status: 'completed',
+      approved_at: new Date().toISOString(),
+      final_score: finalScore,
+      manager_scores: review.manager_scores,
+      manager_open: review.manager_open,
+      goals: review.goals,
+      values_assessment: review.values_assessment,
+      fit_assessment: review.fit_assessment,
+      manager_summary: review.manager_summary,
+    }).eq('id', id)
+
+    // Send emails
+    const html = buildEmailHTML(review, finalScore)
+    await Promise.all([
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: process.env.NEXT_PUBLIC_HR_EMAIL || 'hr@isotopia.co.il', subject: `משוב הושלם: ${review.employee?.full_name}`, html }),
+      }),
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: review.employee?.email, subject: `סיכום משוב – ${review.period?.name}`, html: buildEmployeeEmailHTML(review) }),
+      }),
+    ])
+
+    setSaving(false)
+    router.push('/manager')
+  }
+
+  if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: '#f8f5ff' }}><div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div></div>
+  if (!review) return <div className="min-h-screen flex items-center justify-center text-gray-400">משוב לא נמצא</div>
+
+  const isReadonly = review.status === 'completed'
+  const sections = ['חלק א׳ – דירוגים', 'חלק ב׳ – שאלות פתוחות', 'חלק ג׳ – יעדים וסיכום']
+  const autoScore = calcAutoScore()
+
+  return (
+    <div className="min-h-screen" style={{ background: '#f8f5ff', direction: 'rtl' }}>
+      <header className="text-white shadow-lg" style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}>
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <button onClick={() => router.push('/manager')} className="text-white/70 hover:text-white text-sm mb-1 flex items-center gap-1">
+                ← חזרה
+              </button>
+              <h1 className="text-xl font-bold">{review.employee?.full_name}</h1>
+              <p className="text-xs opacity-70">{review.period?.name} · {review.period?.type === 'semi_annual' ? 'חצי שנתי' : 'שנתי'}</p>
+            </div>
+            <div className="flex items-center gap-3 text-sm">
+              {saving && <span className="opacity-70">שומר...</span>}
+              {saved && <span className="text-green-300">✓ נשמר</span>}
+              {isReadonly && <span className="bg-green-500 px-3 py-1 rounded-full text-xs font-medium">הושלם</span>}
+            </div>
+          </div>
+
+          {/* Section tabs */}
+          <div className="flex gap-2 mt-4">
+            {sections.map((s, i) => (
+              <button key={i} onClick={() => setActiveSection(i)}
+                className={`px-4 py-2 rounded-t-xl text-sm font-medium transition-colors ${activeSection === i ? 'bg-white text-purple-800' : 'text-white/70 hover:text-white'}`}>
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-8">
+        {/* Section A – Scores */}
+        {activeSection === 0 && (
+          <div className="space-y-6">
+            {/* Employee scores side by side */}
+            {Object.keys(review.employee_scores).length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-700">
+                💡 משוב עצמי של העובד זמין להשוואה בטבלה למטה
+              </div>
+            )}
+
+            {REVIEW_CATEGORIES.map(cat => (
+              <div key={cat.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100" style={{ background: '#f3eeff' }}>
+                  <h3 className="font-bold text-gray-800">{cat.label}</h3>
+                </div>
+                <div className="divide-y divide-gray-50">
+                  {cat.items.map(item => {
+                    const key = `${cat.id}__${item}`
+                    const empScore = review.employee_scores[key]
+                    const mgrScore = review.manager_scores[key]
+                    const hasDiff = empScore !== undefined && mgrScore !== undefined && empScore !== mgrScore
+
+                    return (
+                      <div key={item} className={`px-6 py-4 ${hasDiff ? 'bg-yellow-50/50' : ''}`}>
+                        <div className="flex items-start justify-between flex-wrap gap-4">
+                          <p className="text-sm text-gray-700 flex-1 pt-1">{item}</p>
+                          <div className="flex flex-col gap-2 items-end">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400 w-16 text-left">מנהל:</span>
+                              <ScoreSelector value={mgrScore} onChange={v => !isReadonly && updateScore(cat.id, item, v)} readonly={isReadonly} />
+                            </div>
+                            {empScore !== undefined && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-400 w-16 text-left">עובד:</span>
+                                <ScoreSelector value={empScore} readonly />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {hasDiff && <p className="text-xs text-yellow-600 mt-2">⚠️ פער בדירוג – מומלץ לדון בשיחה</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Section B – Open questions */}
+        {activeSection === 1 && (
+          <div className="space-y-5">
+            {OPEN_QUESTIONS_MANAGER.map(q => (
+              <div key={q.id} className="bg-white rounded-2xl shadow-sm p-6">
+                <label className="font-semibold text-gray-800 block mb-3">{q.label}</label>
+                {review.employee_open[q.id] && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3 text-sm text-blue-700">
+                    <span className="font-medium">תשובת העובד: </span>{review.employee_open[q.id]}
+                  </div>
+                )}
+                <textarea
+                  value={review.manager_open[q.id] || ''}
+                  onChange={e => !isReadonly && updateOpen(q.id, e.target.value)}
+                  readOnly={isReadonly}
+                  rows={4}
+                  placeholder="כתוב את התייחסותך..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
+                />
+              </div>
+            ))}
+
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <label className="font-semibold text-gray-800 block mb-3">התאמה לתפקיד</label>
+              <div className="flex flex-wrap gap-3">
+                {FIT_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={isReadonly}
+                    onClick={() => !isReadonly && update({ fit_assessment: opt.value })}
+                    className={`px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${review.fit_assessment === opt.value ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Section C – Goals & Summary */}
+        {activeSection === 2 && (
+          <div className="space-y-6">
+            {/* Goals */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style={{ background: '#f3eeff' }}>
+                <h3 className="font-bold text-gray-800">יעדים</h3>
+                {!isReadonly && (
+                  <button onClick={addGoal} className="text-sm text-purple-600 hover:text-purple-800 font-medium">+ הוסף יעד</button>
+                )}
+              </div>
+              <div className="p-6 space-y-4">
+                {(!review.goals || review.goals.length === 0) && (
+                  <p className="text-gray-400 text-sm text-center py-4">אין יעדים עדיין. לחץ "+ הוסף יעד" כדי להוסיף.</p>
+                )}
+                {(review.goals || []).map((goal, i) => (
+                  <div key={goal.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <input
+                        value={goal.title}
+                        onChange={e => !isReadonly && updateGoal(i, { title: e.target.value })}
+                        readOnly={isReadonly}
+                        placeholder="שם היעד"
+                        className="flex-1 font-medium text-gray-800 border-0 focus:outline-none bg-transparent text-sm"
+                      />
+                      {!isReadonly && (
+                        <button onClick={() => removeGoal(i)} className="text-red-400 hover:text-red-600 text-xs mr-2">הסר</button>
+                      )}
+                    </div>
+                    <textarea
+                      value={goal.description}
+                      onChange={e => !isReadonly && updateGoal(i, { description: e.target.value })}
+                      readOnly={isReadonly}
+                      placeholder="פירוט היעד..."
+                      rows={2}
+                      className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-300 resize-none"
+                    />
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-gray-500">עמידה ביעד:</span>
+                      {[true, false].map(v => (
+                        <button
+                          key={String(v)}
+                          type="button"
+                          disabled={isReadonly}
+                          onClick={() => !isReadonly && updateGoal(i, { achieved: v })}
+                          className={`px-3 py-1 rounded-lg text-xs font-medium border ${goal.achieved === v ? (v ? 'border-green-400 bg-green-50 text-green-700' : 'border-red-400 bg-red-50 text-red-700') : 'border-gray-200 text-gray-400'}`}
+                        >
+                          {v ? '✓ עמד' : '✗ לא עמד'}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      value={goal.comment || ''}
+                      onChange={e => !isReadonly && updateGoal(i, { comment: e.target.value })}
+                      readOnly={isReadonly}
+                      placeholder="הערות..."
+                      className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Final score */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <h3 className="font-bold text-gray-800 mb-4">סיכום הערכה</h3>
+              <div className="flex items-center gap-4 mb-4">
+                <span className="text-sm text-gray-600">ציון מחושב אוטומטית:</span>
+                <span className="text-2xl font-bold" style={{ color: '#4A2D7F' }}>{autoScore}</span>
+                <span className="text-sm text-gray-400">מתוך 3</span>
+              </div>
+              {!isReadonly && (
+                <div className="flex items-center gap-3 mb-4">
+                  <input
+                    type="checkbox"
+                    id="override"
+                    checked={review.final_score_override}
+                    onChange={e => update({ final_score_override: e.target.checked, final_score: autoScore })}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="override" className="text-sm text-gray-600">עקוף ידנית</label>
+                </div>
+              )}
+              {review.final_score_override && !isReadonly && (
+                <div className="flex gap-3">
+                  {[1, 2, 3].map(s => (
+                    <button key={s} type="button" onClick={() => update({ final_score: s as 1 | 2 | 3 })}
+                      className={`w-14 h-14 rounded-xl border-2 text-xl font-bold transition-all ${review.final_score === s ? 'border-purple-500 bg-purple-50 text-purple-700 scale-110' : 'border-gray-200 text-gray-400'}`}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Summary */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <label className="font-bold text-gray-800 block mb-3">סיכום שנתי / חצי שנתי</label>
+              <textarea
+                value={review.manager_summary || ''}
+                onChange={e => !isReadonly && update({ manager_summary: e.target.value })}
+                readOnly={isReadonly}
+                rows={5}
+                placeholder="כתוב סיכום כולל..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
+              />
+            </div>
+
+            {/* Employee response */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <label className="font-bold text-gray-800 block mb-3">התייחסות עובד לסיכום</label>
+              <textarea
+                value={review.employee_response || ''}
+                readOnly
+                rows={3}
+                placeholder="העובד טרם הוסיף התייחסות"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 resize-none"
+              />
+            </div>
+
+            {!isReadonly && (
+              <button
+                onClick={approveReview}
+                disabled={saving}
+                className="w-full py-4 rounded-2xl text-white text-lg font-bold transition-opacity disabled:opacity-60"
+                style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}
+              >
+                {saving ? 'שולח...' : '✓ אישור המשוב ושליחה במייל'}
+              </button>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  )
+}
+
+function buildEmailHTML(review: FullReview, finalScore: number | null): string {
+  return `
+    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8f5ff; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #4A2D7F, #6B46C1); color: white; padding: 30px; border-radius: 16px; margin-bottom: 20px; text-align: center;">
+        <h1 style="margin: 0; font-size: 24px;">משוב הושלם</h1>
+        <p style="margin: 8px 0 0; opacity: 0.8;">${review.period?.name}</p>
+      </div>
+      <div style="background: white; padding: 24px; border-radius: 16px; margin-bottom: 16px;">
+        <h2 style="color: #4A2D7F; margin-top: 0;">פרטי העובד</h2>
+        <p><strong>שם:</strong> ${review.employee?.full_name}</p>
+        <p><strong>ציון סופי:</strong> ${finalScore || '—'} מתוך 3</p>
+      </div>
+      <p style="text-align: center; color: #999; font-size: 12px;">מערכת משוב והערכת עובדים | Isotopia</p>
+    </div>
+  `
+}
+
+function buildEmployeeEmailHTML(review: FullReview): string {
+  const scores = REVIEW_CATEGORIES.map(cat => `
+    <h3 style="color: #4A2D7F;">${cat.label}</h3>
+    ${cat.items.map(item => {
+      const score = review.manager_scores[`${cat.id}__${item}`]
+      return `<p style="margin: 4px 0;"><strong>${item}:</strong> ${score !== undefined ? score : '—'}</p>`
+    }).join('')}
+  `).join('')
+
+  return `
+    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8f5ff; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #4A2D7F, #6B46C1); color: white; padding: 30px; border-radius: 16px; margin-bottom: 20px; text-align: center;">
+        <h1 style="margin: 0;">סיכום המשוב שלך</h1>
+        <p style="margin: 8px 0 0; opacity: 0.8;">${review.period?.name}</p>
+      </div>
+      <div style="background: white; padding: 24px; border-radius: 16px; margin-bottom: 16px;">
+        <h2 style="color: #4A2D7F; margin-top: 0;">שלום ${review.employee?.full_name},</h2>
+        <p>מצורף סיכום המשוב שלך לתקופה: <strong>${review.period?.name}</strong></p>
+        ${scores}
+        <h3 style="color: #4A2D7F;">שאלות פתוחות</h3>
+        ${OPEN_QUESTIONS_MANAGER.filter(q => q.id !== 'promotion').map(q =>
+          review.manager_open[q.id] ? `<p><strong>${q.label}:</strong><br/>${review.manager_open[q.id]}</p>` : ''
+        ).join('')}
+      </div>
+      <p style="text-align: center; color: #999; font-size: 12px;">מערכת משוב והערכת עובדים | Isotopia</p>
+    </div>
+  `
+}

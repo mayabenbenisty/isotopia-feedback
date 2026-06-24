@@ -1,65 +1,145 @@
-import Image from "next/image";
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase'
+import Image from 'next/image'
 
-export default function Home() {
+export default function LoginPage() {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function handleLogin(e: React.FormEvent) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    const supabase = createClient()
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (authError) {
+      setError('אימייל או סיסמה שגויים. אנא נסה שוב.')
+      setLoading(false)
+      return
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single()
+
+    if (profile?.role === 'hr') router.push('/hr')
+    else if (profile?.role === 'manager') router.push('/manager')
+    else router.push('/employee')
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen flex" dir="rtl">
+      {/* Left panel - purple brand */}
+      <div
+        className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12"
+        style={{ background: 'linear-gradient(135deg, #4A2D7F 0%, #6B46C1 100%)' }}
+      >
+        <div className="text-center text-white">
+          <div className="mb-8 flex justify-center">
+            <div className="w-32 h-32 bg-white rounded-2xl flex items-center justify-center shadow-2xl p-3">
+              <Image src="/logo.png" alt="Isotopia Logo" width={110} height={110} style={{ objectFit: 'contain' }} />
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold mb-4">Isotopia</h1>
+          <p className="text-xl opacity-80 mb-2">מערכת משוב והערכת עובדים</p>
+          <p className="text-sm opacity-60">Employee Feedback &amp; Review System</p>
+          <div className="mt-12 space-y-4 text-right">
+            <div className="flex items-center gap-3 bg-white/10 rounded-xl p-4">
+              <span className="text-2xl">📊</span>
+              <div>
+                <p className="font-semibold">דשבורד מרכזי</p>
+                <p className="text-sm opacity-70">מעקב בזמן אמת אחר כל המשובים</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 bg-white/10 rounded-xl p-4">
+              <span className="text-2xl">🔄</span>
+              <div>
+                <p className="font-semibold">תהליך דו-כיווני</p>
+                <p className="text-sm opacity-70">משוב עצמי + הערכת מנהל</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 bg-white/10 rounded-xl p-4">
+              <span className="text-2xl">📧</span>
+              <div>
+                <p className="font-semibold">שליחה אוטומטית</p>
+                <p className="text-sm opacity-70">דיווחים ישירות למייל</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right panel - login form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-white">
+        <div className="w-full max-w-md">
+          <div className="lg:hidden flex justify-center mb-8">
+            <div
+              className="w-20 h-20 rounded-2xl flex items-center justify-center p-2"
+              style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              <Image src="/logo.png" alt="Isotopia" width={60} height={60} style={{ objectFit: 'contain' }} />
+            </div>
+          </div>
+
+          <h2 className="text-3xl font-bold mb-2" style={{ color: '#4A2D7F' }}>ברוכים הבאים</h2>
+          <p className="text-gray-500 mb-8">התחברו עם פרטי הכניסה שלכם</p>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">כתובת אימייל</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                placeholder="your@email.com"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-left"
+                style={{ direction: 'ltr' }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-xl text-white font-semibold text-lg transition-opacity disabled:opacity-60 cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}
             >
-              Learning
-            </a>{" "}
-            center.
+              {loading ? 'מתחבר...' : 'כניסה למערכת'}
+            </button>
+          </form>
+
+          <p className="text-center text-sm text-gray-400 mt-8">
+            לאיפוס סיסמה פנו ל-HR
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
-  );
+  )
 }
