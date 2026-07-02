@@ -36,12 +36,23 @@ export default function ChangePasswordPage() {
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/'); return }
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push('/'); return }
 
-    await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
+    // Clear the must_change_password flag via the server (has the right perms).
+    const res = await fetch('/api/complete-password-change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session.access_token }),
+    })
+    const json = await res.json()
+    if (json.error) {
+      setError('שגיאה בסיום עדכון הסיסמה. אנא נסה/י שוב.')
+      setLoading(false)
+      return
+    }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
     if (profile?.role === 'hr') router.push('/hr')
     else if (profile?.role === 'manager') router.push('/manager')
     else router.push('/employee')

@@ -326,7 +326,7 @@ function EmployeesTab() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [importRows, setImportRows] = useState<ImportRow[]>([])
@@ -360,7 +360,7 @@ function EmployeesTab() {
     else {
       setMsg('המשתמש נוצר בהצלחה!')
       setShowAdd(false)
-      setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: '' })
+      setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' })
       loadProfiles()
     }
     setSaving(false)
@@ -487,7 +487,7 @@ function EmployeesTab() {
         <h2 className="text-xl font-bold text-gray-800">עובדים ומנהלים ({profiles.length})</h2>
         <button
           onClick={() => {
-            if (!showAdd) { setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: '' }); setMsg('') }
+            if (!showAdd) { setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' }); setMsg('') }
             setShowAdd(!showAdd)
           }}
           className="px-4 py-2 rounded-xl text-white text-sm font-medium"
