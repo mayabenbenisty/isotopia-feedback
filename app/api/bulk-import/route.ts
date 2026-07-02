@@ -26,9 +26,11 @@ export async function POST(req: Request) {
   if (!token) return NextResponse.json({ error: 'לא מחובר' }, { status: 401 })
   const { data: userData, error: userErr } = await admin.auth.getUser(token)
   if (userErr || !userData.user) return NextResponse.json({ error: 'הרשאה לא תקינה' }, { status: 401 })
-  const { data: caller } = await admin.from('profiles').select('role, is_admin').eq('id', userData.user.id).single()
+  const { data: caller, error: callerErr } = await admin.from('profiles').select('role, is_admin').eq('id', userData.user.id).single()
   if (!caller || (caller.role !== 'hr' && !caller.is_admin)) {
-    return NextResponse.json({ error: 'רק HR יכול לייבא עובדים' }, { status: 403 })
+    return NextResponse.json({
+      error: `רק HR יכול לייבא עובדים [dbg uid=${(userData.user.id || '').slice(0, 8)} found=${!!caller} role=${caller?.role ?? '-'} admin=${caller?.is_admin ?? '-'} err=${callerErr?.message ?? '-'}]`,
+    }, { status: 403 })
   }
 
   if (!Array.isArray(rows) || rows.length === 0) {
