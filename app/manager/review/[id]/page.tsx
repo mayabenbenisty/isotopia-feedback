@@ -184,7 +184,7 @@ export default function ManagerReviewPage() {
       fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: review.employee?.email, subject: `סיכום משוב – ${review.period?.name}`, html: buildEmployeeEmailHTML(review) }),
+        body: JSON.stringify({ to: review.employee?.email, subject: `סיכום משוב – ${review.period?.name}`, html: buildEmployeeEmailHTML(review, finalScore) }),
       }),
     ])
 
@@ -488,7 +488,7 @@ function buildEmailHTML(review: FullReview, finalScore: number | null): string {
   `
 }
 
-function buildEmployeeEmailHTML(review: FullReview): string {
+function buildEmployeeEmailHTML(review: FullReview, finalScore: number | null): string {
   const scores = REVIEW_CATEGORIES.map(cat => `
     <h3 style="color: #4A2D7F;">${cat.label}</h3>
     ${cat.items.map(item => {
@@ -514,6 +514,8 @@ function buildEmployeeEmailHTML(review: FullReview): string {
           const display = q.type === 'yesno' ? (v === 'yes' ? 'כן' : 'לא') : v
           return `<p><strong>${q.label}:</strong><br/>${display}</p>`
         }).join('')}
+        ${review.manager_summary ? `<h3 style="color: #4A2D7F;">סיכום המנהל</h3><p>${review.manager_summary}</p>` : ''}
+        <p style="margin-top: 16px; font-size: 16px;"><strong>ציון סופי:</strong> ${finalScore || '—'} מתוך 3</p>
       </div>
       <p style="text-align: center; color: #999; font-size: 12px;">מערכת משוב והערכת עובדים | Isotopia</p>
     </div>
