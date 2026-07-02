@@ -326,7 +326,7 @@ function EmployeesTab() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ full_name: '', email: '', role: 'employee', site: 'israel', manager_id: '', password: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [importRows, setImportRows] = useState<ImportRow[]>([])
@@ -360,7 +360,7 @@ function EmployeesTab() {
     else {
       setMsg('המשתמש נוצר בהצלחה!')
       setShowAdd(false)
-      setForm({ full_name: '', email: '', role: 'employee', site: 'israel', manager_id: '', password: '' })
+      setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: '' })
       loadProfiles()
     }
     setSaving(false)
@@ -487,7 +487,7 @@ function EmployeesTab() {
         <h2 className="text-xl font-bold text-gray-800">עובדים ומנהלים ({profiles.length})</h2>
         <button
           onClick={() => {
-            if (!showAdd) { setForm({ full_name: '', email: '', role: 'employee', site: 'israel', manager_id: '', password: '' }); setMsg('') }
+            if (!showAdd) { setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: '' }); setMsg('') }
             setShowAdd(!showAdd)
           }}
           className="px-4 py-2 rounded-xl text-white text-sm font-medium"
@@ -527,6 +527,14 @@ function EmployeesTab() {
                 <option value="israel">ישראל</option>
                 <option value="usa">ארה״ב</option>
               </select>
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">מיקום</label>
+              <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="פתח תקווה / מודיעין" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">מחלקה</label>
+              <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))} />
             </div>
             {form.role === 'employee' && (
               <div>

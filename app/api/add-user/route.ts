@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
-  const { full_name, email, password, role, site, manager_id } = await req.json()
+  const { full_name, email, password, role, site, location, department, manager_id } = await req.json()
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,6 +23,8 @@ export async function POST(req: Request) {
     email,
     role,
     site,
+    location: location || null,
+    department: department || null,
     manager_id: manager_id || null,
   })
 
