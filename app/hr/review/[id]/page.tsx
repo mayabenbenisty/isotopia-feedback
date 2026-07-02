@@ -104,6 +104,16 @@ export default function HRReviewPage() {
           <h2 className="font-bold text-lg text-purple-800">חלק ג׳ – יעדים, ערכים וסיכום</h2>
           {review.part_c?.unit_goals && <p className="text-sm"><b>יעדי היחידה:</b> {review.part_c.unit_goals}</p>}
           {review.part_c?.dept_goals && <p className="text-sm"><b>יעדי מחלקה:</b> {review.part_c.dept_goals}</p>}
+          {(review.part_c?.achievements?.length ?? 0) > 0 && (
+            <div><p className="font-medium text-gray-800 text-sm">הישגים</p>
+              {review.part_c!.achievements!.map((r, i) => <p key={i} className="text-sm text-gray-600">• {r.title} — {r.detail}</p>)}
+            </div>
+          )}
+          {(review.part_c?.improvements?.length ?? 0) > 0 && (
+            <div><p className="font-medium text-gray-800 text-sm">לשיפור</p>
+              {review.part_c!.improvements!.map((r, i) => <p key={i} className="text-sm text-gray-600">• {r.title} — {r.detail}</p>)}
+            </div>
+          )}
           <div className="pt-2">
             <p className="font-medium text-gray-800 text-sm mb-1">ערכי החברה</p>
             {ORG_VALUES.map(val => review.part_c?.org_values?.[val.id]

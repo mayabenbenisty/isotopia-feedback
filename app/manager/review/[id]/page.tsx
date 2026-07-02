@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { ScoreSelector } from '@/components/ScoreSelector'
-import type { Review, Profile, ReviewPeriod, Goal, PartC } from '@/lib/types'
+import type { Review, Profile, ReviewPeriod, PartC } from '@/lib/types'
 import { REVIEW_CATEGORIES, OPEN_QUESTIONS_MANAGER, FIT_OPTIONS, ORG_VALUES, MIN_OPEN_CHARS } from '@/lib/types'
 
 type FullReview = Review & { employee: Profile; period: ReviewPeriod }
@@ -110,24 +110,41 @@ export default function ManagerReviewPage() {
     return 1
   }
 
-  function updateGoal(index: number, patch: Partial<Goal>) {
-    if (!review) return
-    const goals = [...(review.goals || [])]
-    goals[index] = { ...goals[index], ...patch }
-    update({ goals })
+  type RowField = 'achievements' | 'improvements'
+  function addRow(field: RowField) {
+    const rows = [...(review?.part_c?.[field] || []), { title: '', detail: '' }]
+    updatePartC({ [field]: rows })
   }
-
-  function addGoal() {
-    if (!review) return
-    const goals = [...(review.goals || []), { id: Date.now().toString(), title: '', description: '', achieved: null, comment: '' }]
-    update({ goals })
+  function setRow(field: RowField, i: number, patch: Partial<{ title: string; detail: string }>) {
+    const rows = [...(review?.part_c?.[field] || [])]
+    rows[i] = { ...rows[i], ...patch }
+    updatePartC({ [field]: rows })
   }
-
-  function removeGoal(index: number) {
-    if (!review) return
-    const goals = [...(review.goals || [])]
-    goals.splice(index, 1)
-    update({ goals })
+  function delRow(field: RowField, i: number) {
+    const rows = [...(review?.part_c?.[field] || [])]
+    rows.splice(i, 1)
+    updatePartC({ [field]: rows })
+  }
+  function goalTable(field: RowField, title: string) {
+    const rows = review?.part_c?.[field] || []
+    return (
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style={{ background: '#f3eeff' }}>
+          <h3 className="font-bold text-gray-800">{title}</h3>
+          {!isReadonly && <button onClick={() => addRow(field)} className="text-sm text-purple-600 hover:text-purple-800 font-medium">+ הוסף</button>}
+        </div>
+        <div className="p-6 space-y-3">
+          {rows.length === 0 && <p className="text-gray-400 text-sm text-center py-2">אין רשומות. לחץ &quot;+ הוסף&quot;.</p>}
+          {rows.map((r, i) => (
+            <div key={i} className="flex gap-2 items-start">
+              <input value={r.title} onChange={e => !isReadonly && setRow(field, i, { title: e.target.value })} readOnly={isReadonly} placeholder="יעד" className="w-1/3 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-300" />
+              <input value={r.detail} onChange={e => !isReadonly && setRow(field, i, { detail: e.target.value })} readOnly={isReadonly} placeholder="פירוט" className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-300" />
+              {!isReadonly && <button onClick={() => delRow(field, i)} className="text-red-400 hover:text-red-600 text-xs pt-2">הסר</button>}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   async function approveReview() {
@@ -330,65 +347,9 @@ export default function ManagerReviewPage() {
         {/* Section C – Goals & Summary */}
         {activeSection === 2 && (
           <div className="space-y-6">
-            {/* Goals */}
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style={{ background: '#f3eeff' }}>
-                <h3 className="font-bold text-gray-800">יעדים</h3>
-                {!isReadonly && (
-                  <button onClick={addGoal} className="text-sm text-purple-600 hover:text-purple-800 font-medium">+ הוסף יעד</button>
-                )}
-              </div>
-              <div className="p-6 space-y-4">
-                {(!review.goals || review.goals.length === 0) && (
-                  <p className="text-gray-400 text-sm text-center py-4">אין יעדים עדיין. לחץ "+ הוסף יעד" כדי להוסיף.</p>
-                )}
-                {(review.goals || []).map((goal, i) => (
-                  <div key={goal.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <input
-                        value={goal.title}
-                        onChange={e => !isReadonly && updateGoal(i, { title: e.target.value })}
-                        readOnly={isReadonly}
-                        placeholder="שם היעד"
-                        className="flex-1 font-medium text-gray-800 border-0 focus:outline-none bg-transparent text-sm"
-                      />
-                      {!isReadonly && (
-                        <button onClick={() => removeGoal(i)} className="text-red-400 hover:text-red-600 text-xs mr-2">הסר</button>
-                      )}
-                    </div>
-                    <textarea
-                      value={goal.description}
-                      onChange={e => !isReadonly && updateGoal(i, { description: e.target.value })}
-                      readOnly={isReadonly}
-                      placeholder="פירוט היעד..."
-                      rows={2}
-                      className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-300 resize-none"
-                    />
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs text-gray-500">עמידה ביעד:</span>
-                      {[true, false].map(v => (
-                        <button
-                          key={String(v)}
-                          type="button"
-                          disabled={isReadonly}
-                          onClick={() => !isReadonly && updateGoal(i, { achieved: v })}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium border ${goal.achieved === v ? (v ? 'border-green-400 bg-green-50 text-green-700' : 'border-red-400 bg-red-50 text-red-700') : 'border-gray-200 text-gray-400'}`}
-                        >
-                          {v ? '✓ עמד' : '✗ לא עמד'}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      value={goal.comment || ''}
-                      onChange={e => !isReadonly && updateGoal(i, { comment: e.target.value })}
-                      readOnly={isReadonly}
-                      placeholder="הערות..."
-                      className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Goals: achievements & improvements */}
+            {goalTable('achievements', 'הישגים (משימות ויעדים בהם הצליח)')}
+            {goalTable('improvements', 'לשיפור (משימות ויעדים שבהם לא עמד)')}
 
             {/* Unit & department goals */}
             <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
