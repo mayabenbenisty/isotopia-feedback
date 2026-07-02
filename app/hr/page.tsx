@@ -357,7 +357,12 @@ function EmployeesTab() {
     })
     const json = await res.json()
     if (json.error) setMsg('שגיאה: ' + json.error)
-    else { setMsg('המשתמש נוצר בהצלחה!'); setShowAdd(false); loadProfiles() }
+    else {
+      setMsg('המשתמש נוצר בהצלחה!')
+      setShowAdd(false)
+      setForm({ full_name: '', email: '', role: 'employee', site: 'israel', manager_id: '', password: '' })
+      loadProfiles()
+    }
     setSaving(false)
   }
 
@@ -481,7 +486,10 @@ function EmployeesTab() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-gray-800">עובדים ומנהלים ({profiles.length})</h2>
         <button
-          onClick={() => setShowAdd(!showAdd)}
+          onClick={() => {
+            if (!showAdd) { setForm({ full_name: '', email: '', role: 'employee', site: 'israel', manager_id: '', password: '' }); setMsg('') }
+            setShowAdd(!showAdd)
+          }}
           className="px-4 py-2 rounded-xl text-white text-sm font-medium"
           style={{ background: '#4A2D7F' }}
         >
