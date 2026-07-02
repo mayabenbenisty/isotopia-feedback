@@ -174,6 +174,15 @@ export default function EmployeeReviewPage() {
                 </div>
               </div>
             ))}
+            {!isReadonly && (
+              <button
+                onClick={() => setActiveSection(1)}
+                className="w-full py-3 rounded-2xl text-white font-semibold"
+                style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}
+              >
+                המשך לשאלות הפתוחות ←
+              </button>
+            )}
           </div>
         )}
 

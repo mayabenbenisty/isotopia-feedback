@@ -530,7 +530,11 @@ function EmployeesTab() {
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1 block">מיקום</label>
-              <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" placeholder="פתח תקווה / מודיעין" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+              <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}>
+                <option value="">בחר מיקום</option>
+                <option value="פתח תקווה">פתח תקווה</option>
+                <option value="מודיעין">מודיעין</option>
+              </select>
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1 block">מחלקה</label>
@@ -563,6 +567,7 @@ function EmployeesTab() {
             <tr style={{ background: '#f3eeff' }}>
               <th className="text-right px-5 py-4 font-semibold text-gray-700">שם</th>
               <th className="text-right px-5 py-4 font-semibold text-gray-700">מס׳ עובד</th>
+              <th className="text-right px-5 py-4 font-semibold text-gray-700">אימייל</th>
               <th className="text-right px-5 py-4 font-semibold text-gray-700">מחלקה</th>
               <th className="text-right px-5 py-4 font-semibold text-gray-700">תפקיד</th>
               <th className="text-right px-5 py-4 font-semibold text-gray-700">מיקום</th>
@@ -578,6 +583,7 @@ function EmployeesTab() {
               >
                 <td className="px-5 py-4 font-medium text-gray-800">{p.full_name}</td>
                 <td className="px-5 py-4 text-gray-500" style={{ direction: 'ltr' }}>{p.employee_number || '—'}</td>
+                <td className="px-5 py-4 text-gray-500" style={{ direction: 'ltr' }}>{p.email || '—'}</td>
                 <td className="px-5 py-4 text-gray-600">{p.department || '—'}</td>
                 <td className="px-5 py-4">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${p.role === 'hr' ? 'bg-purple-100 text-purple-700' : p.role === 'manager' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -636,7 +642,11 @@ function EmployeesTab() {
               </div>
               <div>
                 <label className="text-sm text-gray-600 mb-1 block">מיקום</label>
-                <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.location || ''} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} />
+                <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.location || ''} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))}>
+                  <option value="">בחר מיקום</option>
+                  <option value="פתח תקווה">פתח תקווה</option>
+                  <option value="מודיעין">מודיעין</option>
+                </select>
               </div>
               <div>
                 <label className="text-sm text-gray-600 mb-1 block">אתר</label>
