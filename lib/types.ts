@@ -6,11 +6,17 @@ export type ReviewType = 'semi_annual' | 'annual'
 export interface Profile {
   id: string
   full_name: string
-  email: string
+  email: string | null
   role: Role
   site: Site
   manager_id: string | null
   created_at: string
+  employee_number?: string | null
+  location?: string | null
+  department?: string | null
+  is_admin?: boolean
+  active?: boolean
+  must_change_password?: boolean
 }
 
 export interface ReviewPeriod {

@@ -333,6 +333,10 @@ function EmployeesTab() {
   const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null)
   const [importing, setImporting] = useState(false)
   const [importErr, setImportErr] = useState('')
+  const [editUser, setEditUser] = useState<Profile | null>(null)
+  const [editForm, setEditForm] = useState<Partial<Profile>>({})
+  const [editSaving, setEditSaving] = useState(false)
+  const [editMsg, setEditMsg] = useState('')
 
   useEffect(() => { loadProfiles() }, [])
 
@@ -381,6 +385,47 @@ function EmployeesTab() {
     if (json.error) setImportErr(json.error)
     else { setImportResult(json); setImportRows([]); loadProfiles() }
     setImporting(false)
+  }
+
+  function openEdit(p: Profile) {
+    setEditUser(p)
+    setEditForm({
+      full_name: p.full_name,
+      role: p.role,
+      site: p.site,
+      location: p.location,
+      department: p.department,
+      manager_id: p.manager_id || '',
+      active: p.active !== false,
+    })
+    setEditMsg('')
+  }
+
+  async function callAdmin(action: string, body: Record<string, unknown>) {
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/admin-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session?.access_token, id: editUser?.id, action, ...body }),
+    })
+    return res.json()
+  }
+
+  async function saveEdit() {
+    setEditSaving(true); setEditMsg('')
+    const json = await callAdmin('save', { fields: editForm })
+    if (json.error) setEditMsg('שגיאה: ' + json.error)
+    else { setEditUser(null); loadProfiles() }
+    setEditSaving(false)
+  }
+
+  async function resetPwd() {
+    setEditSaving(true); setEditMsg('')
+    const json = await callAdmin('resetPassword', {})
+    if (json.error) setEditMsg('שגיאה: ' + json.error)
+    else setEditMsg('✓ הסיסמה אופסה ל-Isotopia2026. העובד יתבקש להחליף בכניסה הבאה.')
+    setEditSaving(false)
   }
 
   const managers = profiles.filter(p => p.role === 'manager')
@@ -495,32 +540,124 @@ function EmployeesTab() {
         </div>
       )}
 
+      <p className="text-sm text-gray-500 mb-2">💡 לחצי על שורה כדי לערוך עובד (תפקיד, מנהל/צוות, מיקום, סטטוס, איפוס סיסמה).</p>
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: '#f3eeff' }}>
               <th className="text-right px-5 py-4 font-semibold text-gray-700">שם</th>
-              <th className="text-right px-5 py-4 font-semibold text-gray-700">אימייל</th>
+              <th className="text-right px-5 py-4 font-semibold text-gray-700">מס׳ עובד</th>
+              <th className="text-right px-5 py-4 font-semibold text-gray-700">מחלקה</th>
               <th className="text-right px-5 py-4 font-semibold text-gray-700">תפקיד</th>
-              <th className="text-right px-5 py-4 font-semibold text-gray-700">אתר</th>
+              <th className="text-right px-5 py-4 font-semibold text-gray-700">מיקום</th>
+              <th className="text-right px-5 py-4 font-semibold text-gray-700">מצב</th>
             </tr>
           </thead>
           <tbody>
             {profiles.map((p, i) => (
-              <tr key={p.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+              <tr
+                key={p.id}
+                onClick={() => openEdit(p)}
+                className={`cursor-pointer hover:bg-purple-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} ${p.active === false ? 'opacity-50' : ''}`}
+              >
                 <td className="px-5 py-4 font-medium text-gray-800">{p.full_name}</td>
-                <td className="px-5 py-4 text-gray-600" style={{ direction: 'ltr' }}>{p.email}</td>
+                <td className="px-5 py-4 text-gray-500" style={{ direction: 'ltr' }}>{p.employee_number || '—'}</td>
+                <td className="px-5 py-4 text-gray-600">{p.department || '—'}</td>
                 <td className="px-5 py-4">
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${p.role === 'hr' ? 'bg-purple-100 text-purple-700' : p.role === 'manager' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
                     {p.role === 'hr' ? 'HR' : p.role === 'manager' ? 'מנהל' : 'עובד'}
                   </span>
                 </td>
-                <td className="px-5 py-4 text-gray-600">{p.site === 'israel' ? '🇮🇱 ישראל' : '🇺🇸 ארה״ב'}</td>
+                <td className="px-5 py-4 text-gray-600">{p.location || (p.site === 'usa' ? '🇺🇸' : '🇮🇱')}</td>
+                <td className="px-5 py-4">
+                  {p.active === false
+                    ? <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">עזב</span>
+                    : <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">פעיל</span>}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Edit employee modal */}
+      {editUser && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setEditUser(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="font-bold text-lg text-gray-800">{editUser.full_name}</h3>
+                <p className="text-sm text-gray-400" style={{ direction: 'ltr' }}>
+                  מס׳ עובד {editUser.employee_number || '—'} · {editUser.email || 'ללא מייל'}
+                </p>
+              </div>
+              <button onClick={() => setEditUser(null)} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">שם מלא</label>
+                <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.full_name || ''} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">תפקיד</label>
+                <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value as Profile['role'] }))}>
+                  <option value="employee">עובד</option>
+                  <option value="manager">מנהל</option>
+                  <option value="hr">HR</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">מנהל ישיר</label>
+                <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.manager_id || ''} onChange={e => setEditForm(f => ({ ...f, manager_id: e.target.value }))}>
+                  <option value="">— ללא מנהל (ראש היררכיה) —</option>
+                  {managers.filter(m => m.id !== editUser.id).map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">מחלקה</label>
+                <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.department || ''} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">מיקום</label>
+                <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.location || ''} onChange={e => setEditForm(f => ({ ...f, location: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">אתר</label>
+                <select className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={editForm.site} onChange={e => setEditForm(f => ({ ...f, site: e.target.value as Profile['site'] }))}>
+                  <option value="israel">ישראל</option>
+                  <option value="usa">ארה״ב</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between bg-gray-50 rounded-xl p-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700">סטטוס עובד</p>
+                <p className="text-xs text-gray-400">עובד שעזב לא יוכל להתחבר, אך היסטוריית המשובים שלו נשמרת.</p>
+              </div>
+              <button
+                onClick={() => setEditForm(f => ({ ...f, active: !(f.active !== false) }))}
+                className={`px-4 py-2 rounded-xl text-sm font-medium ${editForm.active !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
+              >
+                {editForm.active !== false ? '✓ פעיל' : 'עזב'}
+              </button>
+            </div>
+
+            {editMsg && <p className={`mt-3 text-sm ${editMsg.includes('שגיאה') ? 'text-red-600' : 'text-green-600'}`}>{editMsg}</p>}
+
+            <div className="flex flex-wrap gap-3 mt-5">
+              <button onClick={saveEdit} disabled={editSaving} className="px-6 py-2 rounded-xl text-white text-sm font-medium disabled:opacity-60" style={{ background: '#4A2D7F' }}>
+                {editSaving ? 'שומר...' : 'שמירת שינויים'}
+              </button>
+              <button onClick={resetPwd} disabled={editSaving} className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600">
+                איפוס סיסמה
+              </button>
+              <button onClick={() => setEditUser(null)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-500">ביטול</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

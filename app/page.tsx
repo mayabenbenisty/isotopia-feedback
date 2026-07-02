@@ -31,9 +31,17 @@ export default function LoginPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, must_change_password')
+      .select('role, must_change_password, active')
       .eq('id', data.user.id)
       .single()
+
+    // Deactivated ("left") users cannot enter.
+    if (profile && profile.active === false) {
+      await supabase.auth.signOut()
+      setError('החשבון אינו פעיל. אנא פנה/י ל-HR.')
+      setLoading(false)
+      return
+    }
 
     // First-time / reset users must set their own password before entering.
     if (profile?.must_change_password) { router.push('/change-password'); return }
