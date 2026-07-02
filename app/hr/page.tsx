@@ -684,6 +684,7 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
   const [saving, setSaving] = useState(false)
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [openMsg, setOpenMsg] = useState('')
+  const [periodMsg, setPeriodMsg] = useState('')
 
   async function openPeriod(id: string) {
     setOpeningId(id); setOpenMsg('')
@@ -702,11 +703,22 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
   }
 
   async function addPeriod() {
+    setPeriodMsg('')
+    if (!form.name.trim()) { setPeriodMsg('יש להזין שם תקופה'); return }
     setSaving(true)
     const supabase = createClient()
-    await supabase.from('review_periods').insert(form)
+    const { error } = await supabase.from('review_periods').insert({
+      name: form.name.trim(),
+      type: form.type,
+      site: form.site,
+      start_date: form.start_date || null,
+      end_date: form.end_date || null,
+      is_active: true,
+    })
     setSaving(false)
+    if (error) { setPeriodMsg('שגיאה: ' + error.message); return }
     setShowAdd(false)
+    setForm({ name: '', type: 'semi_annual', site: 'israel', start_date: '', end_date: '' })
     onRefresh()
   }
 
@@ -756,6 +768,7 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
               <input type="date" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} />
             </div>
           </div>
+          {periodMsg && <p className={`mt-3 text-sm ${periodMsg.includes('שגיאה') ? 'text-red-600' : 'text-green-600'}`}>{periodMsg}</p>}
           <div className="flex gap-3 mt-4">
             <button onClick={addPeriod} disabled={saving} className="px-6 py-2 rounded-xl text-white text-sm font-medium disabled:opacity-60" style={{ background: '#4A2D7F' }}>
               {saving ? 'שומר...' : 'שמירה'}
