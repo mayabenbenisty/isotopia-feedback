@@ -44,6 +44,7 @@ export default function ManagerReviewPage() {
       final_score_override: updated.final_score_override,
       manager_summary: updated.manager_summary,
       part_c: updated.part_c,
+      employee_response: updated.employee_response,
       status: updated.status,
     }).eq('id', id)
     setSaving(false)
@@ -171,6 +172,8 @@ export default function ManagerReviewPage() {
       values_assessment: review.values_assessment,
       fit_assessment: review.fit_assessment,
       manager_summary: review.manager_summary,
+      part_c: review.part_c,
+      employee_response: review.employee_response,
     }).eq('id', id)
 
     // Send emails
@@ -442,15 +445,17 @@ export default function ManagerReviewPage() {
               />
             </div>
 
-            {/* Employee response */}
+            {/* Employee response – recorded by the manager during the conversation */}
             <div className="bg-white rounded-2xl shadow-sm p-6">
-              <label className="font-bold text-gray-800 block mb-3">התייחסות עובד לסיכום</label>
+              <label className="font-bold text-gray-800 block mb-1">התייחסות העובד לסיכום</label>
+              <p className="text-xs text-gray-400 mb-3">רשום/מי כאן את מה שהעובד אמר בשיחת המשוב.</p>
               <textarea
                 value={review.employee_response || ''}
-                readOnly
+                onChange={e => !isReadonly && update({ employee_response: e.target.value })}
+                readOnly={isReadonly}
                 rows={3}
-                placeholder="העובד טרם הוסיף התייחסות"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 resize-none"
+                placeholder="התייחסות העובד כפי שנאמרה בשיחה..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
               />
             </div>
 

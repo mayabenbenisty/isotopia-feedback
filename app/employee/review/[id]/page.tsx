@@ -235,13 +235,13 @@ export default function EmployeeReviewPage() {
 
         {activeSection === 2 && review.status === 'completed' && (
           <div className="bg-white rounded-2xl shadow-sm p-6">
-            <label className="font-bold text-gray-800 block mb-3">התייחסות לסיכום המנהל</label>
+            <label className="font-bold text-gray-800 block mb-3">התייחסותך לסיכום (כפי שנרשמה בשיחה)</label>
             <textarea
               value={review.employee_response || ''}
-              onChange={e => update({ employee_response: e.target.value })}
+              readOnly
               rows={5}
-              placeholder="כתוב את התייחסותך לסיכום..."
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
+              placeholder="לא נרשמה התייחסות"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 resize-none"
             />
           </div>
         )}
