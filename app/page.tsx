@@ -17,19 +17,26 @@ export default function LoginPage() {
     setLoading(true)
 
     const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    // Allow login by employee number OR email: if the identifier has no "@",
+    // treat it as an employee number and map it to the internal login email.
+    const identifier = email.trim()
+    const loginEmail = identifier.includes('@') ? identifier : `${identifier}@isotopia.internal`
+    const { data, error: authError } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
 
     if (authError) {
-      setError('אימייל או סיסמה שגויים. אנא נסה שוב.')
+      setError('מספר עובד/אימייל או סיסמה שגויים. אנא נסה שוב.')
       setLoading(false)
       return
     }
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, must_change_password')
       .eq('id', data.user.id)
       .single()
+
+    // First-time / reset users must set their own password before entering.
+    if (profile?.must_change_password) { router.push('/change-password'); return }
 
     if (profile?.role === 'hr') router.push('/hr')
     else if (profile?.role === 'manager') router.push('/manager')
@@ -95,13 +102,13 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">כתובת אימייל</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">מספר עובד או אימייל</label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                placeholder="your@email.com"
+                placeholder="מספר עובד או your@email.com"
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-left"
                 style={{ direction: 'ltr' }}
               />

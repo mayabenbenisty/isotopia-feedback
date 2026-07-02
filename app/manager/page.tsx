@@ -21,6 +21,7 @@ export default function ManagerDashboard() {
     if (!user) { router.push('/'); return }
 
     const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+    if (prof?.must_change_password) { router.push('/change-password'); return }
     if (!prof || prof.role !== 'manager') { router.push('/'); return }
     setProfile(prof)
 

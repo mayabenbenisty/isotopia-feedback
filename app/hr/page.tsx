@@ -36,7 +36,8 @@ export default function HRDashboard() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const { data: profile } = await supabase.from('profiles').select('role, must_change_password').eq('id', user.id).single()
+    if (profile?.must_change_password) { router.push('/change-password'); return }
     if (profile?.role !== 'hr') { router.push('/'); return }
 
     const [{ data: periodsData }, { data: reviewsData }] = await Promise.all([
@@ -235,6 +236,92 @@ export default function HRDashboard() {
   )
 }
 
+// --- CSV import helpers ---
+type ImportRow = {
+  employee_number: string
+  full_name: string
+  email: string | null
+  department: string | null
+  site: string
+  location: string | null
+  role: 'hr' | 'manager' | 'employee'
+  manager_employee_number: string | null
+}
+
+function parseCSV(text: string): string[][] {
+  const rows: string[][] = []
+  let field = '', row: string[] = [], inQuotes = false
+  const s = text.replace(/^﻿/, '') // strip BOM
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (inQuotes) {
+      if (c === '"') { if (s[i + 1] === '"') { field += '"'; i++ } else inQuotes = false }
+      else field += c
+    } else {
+      if (c === '"') inQuotes = true
+      else if (c === ',') { row.push(field); field = '' }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = '' }
+      else if (c === '\r') { /* ignore */ }
+      else field += c
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row) }
+  return rows.filter(r => r.some(c => c.trim() !== ''))
+}
+
+function mapHeader(h: string): keyof ImportRow | 'first_name' | 'last_name' | 'manager_name' | null {
+  const t = h.replace(/`/g, '').trim()
+  if (t.includes('מס') && t.includes('מנהל')) return 'manager_employee_number'
+  if (t.includes('מס') && t.includes('עובד')) return 'employee_number'
+  if (t.includes('פרטי')) return 'first_name'
+  if (t.includes('משפחה')) return 'last_name'
+  if (t.includes('מייל') || t.toLowerCase().includes('mail')) return 'email'
+  if (t.includes('מחלקה')) return 'department'
+  if (t.includes('אתר')) return 'site'
+  if (t.includes('מיקום')) return 'location'
+  if (t.includes('תפקיד')) return 'role'
+  return null // e.g. "מנהל ישיר" (name) — ignored
+}
+
+function normalizeRole(v: string): 'hr' | 'manager' | 'employee' {
+  const t = (v || '').trim().toLowerCase()
+  if (t.includes('hr') || t.includes('אנוש')) return 'hr'
+  if (t.includes('מנהל') || t === 'manager') return 'manager'
+  return 'employee'
+}
+
+function normalizeSite(v: string): string {
+  const t = (v || '').trim()
+  if (t.includes('רה') || t.toLowerCase().includes('usa')) return 'usa'
+  return 'israel'
+}
+
+function rowsFromCSV(text: string): ImportRow[] {
+  const grid = parseCSV(text)
+  if (grid.length < 2) return []
+  const headers = grid[0].map(mapHeader)
+  const out: ImportRow[] = []
+  for (let i = 1; i < grid.length; i++) {
+    const cells = grid[i]
+    const rec: Record<string, string> = {}
+    headers.forEach((key, idx) => { if (key) rec[key] = (cells[idx] || '').trim() })
+    const empNo = (rec.employee_number || '').trim()
+    if (!empNo) continue
+    const full = `${rec.first_name || ''} ${rec.last_name || ''}`.trim()
+    out.push({
+      employee_number: empNo,
+      full_name: full,
+      email: rec.email ? rec.email.trim() : null,
+      department: rec.department || null,
+      site: normalizeSite(rec.site),
+      location: rec.location || null,
+      role: normalizeRole(rec.role),
+      manager_employee_number: rec.manager_employee_number ? rec.manager_employee_number.trim() : null,
+    })
+  }
+  return out
+}
+
 function EmployeesTab() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
@@ -242,6 +329,10 @@ function EmployeesTab() {
   const [form, setForm] = useState({ full_name: '', email: '', role: 'employee', site: 'israel', manager_id: '', password: '' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [importRows, setImportRows] = useState<ImportRow[]>([])
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importErr, setImportErr] = useState('')
 
   useEffect(() => { loadProfiles() }, [])
 
@@ -266,12 +357,82 @@ function EmployeesTab() {
     setSaving(false)
   }
 
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const text = await file.text()
+    setImportRows(rowsFromCSV(text))
+    setImportResult(null)
+    setImportErr('')
+  }
+
+  async function runImport() {
+    setImporting(true)
+    setImportErr('')
+    setImportResult(null)
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/bulk-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session?.access_token, rows: importRows }),
+    })
+    const json = await res.json()
+    if (json.error) setImportErr(json.error)
+    else { setImportResult(json); setImportRows([]); loadProfiles() }
+    setImporting(false)
+  }
+
   const managers = profiles.filter(p => p.role === 'manager')
 
   if (loading) return <div className="text-center py-12 text-gray-400">טוען...</div>
 
   return (
     <div>
+      {/* Bulk import from CSV */}
+      <div className="bg-white rounded-2xl shadow-sm p-6 mb-6 border-2 border-dashed border-purple-200">
+        <h3 className="font-bold text-gray-800 mb-1">📥 ייבוא עובדים מקובץ</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          שמרי את קובץ האקסל בתור <b>CSV UTF-8</b> (קובץ → שמירה בשם → סוג: &quot;CSV UTF-8&quot;), והעלי אותו כאן.
+          עובדים חדשים ייווצרו עם סיסמה זמנית <b>Isotopia2026</b> (יתבקשו להחליף בכניסה הראשונה). ריצה חוזרת רק מעדכנת, לא כופלת.
+        </p>
+        <input type="file" accept=".csv,text/csv" onChange={handleFile} className="text-sm" />
+        {importRows.length > 0 && (
+          <div className="mt-4">
+            <p className="text-sm text-gray-700 mb-2">
+              זוהו <b>{importRows.length}</b> עובדים בקובץ
+              {' '}(מנהלים: {importRows.filter(r => r.role === 'manager').length},
+              {' '}עובדים: {importRows.filter(r => r.role === 'employee').length},
+              {' '}HR: {importRows.filter(r => r.role === 'hr').length}).
+            </p>
+            <button
+              onClick={runImport}
+              disabled={importing}
+              className="px-6 py-2 rounded-xl text-white text-sm font-medium disabled:opacity-60"
+              style={{ background: '#4A2D7F' }}
+            >
+              {importing ? 'מייבא... (עשוי לקחת דקה)' : `ייבא ${importRows.length} עובדים`}
+            </button>
+          </div>
+        )}
+        {importErr && <p className="mt-3 text-sm text-red-600">שגיאה: {importErr}</p>}
+        {importResult && (
+          <div className="mt-3 text-sm bg-green-50 border border-green-200 rounded-xl p-3">
+            <p className="text-green-700 font-medium">
+              ✓ הייבוא הסתיים — נוצרו {importResult.created}, עודכנו {importResult.updated}.
+            </p>
+            {importResult.errors.length > 0 && (
+              <div className="mt-2 text-red-600">
+                <p className="font-medium">שגיאות ({importResult.errors.length}):</p>
+                <ul className="list-disc pr-5 max-h-32 overflow-auto">
+                  {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-gray-800">עובדים ומנהלים ({profiles.length})</h2>
         <button
