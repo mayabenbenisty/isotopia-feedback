@@ -490,6 +490,7 @@ function buildEmailHTML(review: FullReview, finalScore: number | null): string {
   return `
     <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8f5ff; padding: 20px;">
       <div style="background: linear-gradient(135deg, #4A2D7F, #6B46C1); color: white; padding: 30px; border-radius: 16px; margin-bottom: 20px; text-align: center;">
+        <img src="https://isotopia-feedback.vercel.app/logo.png" alt="Isotopia" width="56" height="56" style="background:#fff;border-radius:12px;padding:6px;margin-bottom:12px;" />
         <h1 style="margin: 0; font-size: 24px;">משוב הושלם</h1>
         <p style="margin: 8px 0 0; opacity: 0.8;">${review.period?.name}</p>
       </div>
@@ -515,6 +516,7 @@ function buildEmployeeEmailHTML(review: FullReview, finalScore: number | null): 
   return `
     <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8f5ff; padding: 20px;">
       <div style="background: linear-gradient(135deg, #4A2D7F, #6B46C1); color: white; padding: 30px; border-radius: 16px; margin-bottom: 20px; text-align: center;">
+        <img src="https://isotopia-feedback.vercel.app/logo.png" alt="Isotopia" width="56" height="56" style="background:#fff;border-radius:12px;padding:6px;margin-bottom:12px;" />
         <h1 style="margin: 0;">סיכום המשוב שלך</h1>
         <p style="margin: 8px 0 0; opacity: 0.8;">${review.period?.name}</p>
       </div>

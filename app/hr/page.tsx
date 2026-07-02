@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import type { Profile, Review, ReviewPeriod } from '@/lib/types'
 
@@ -113,8 +114,8 @@ export default function HRDashboard() {
       <header className="text-white shadow-lg" style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-              <span className="text-xl">📊</span>
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1">
+              <Image src="/logo.png" alt="Isotopia" width={32} height={32} style={{ objectFit: 'contain' }} />
             </div>
             <div>
               <h1 className="text-xl font-bold">מערכת משוב | Isotopia</h1>

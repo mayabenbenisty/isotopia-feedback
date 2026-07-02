@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
 import type { Profile, Review, ReviewPeriod } from '@/lib/types'
 
@@ -64,9 +65,14 @@ export default function ManagerDashboard() {
     <div className="min-h-screen" style={{ background: '#f8f5ff', direction: 'rtl' }}>
       <header className="text-white shadow-lg" style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}>
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">שלום, {profile?.full_name} 👋</h1>
-            <p className="text-xs opacity-70">פאנל מנהל | {team.length} עובדים בצוות</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center p-1">
+              <Image src="/logo.png" alt="Isotopia" width={32} height={32} style={{ objectFit: 'contain' }} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">שלום, {profile?.full_name} 👋</h1>
+              <p className="text-xs opacity-70">פאנל מנהל | {team.length} עובדים בצוות</p>
+            </div>
           </div>
           <button onClick={handleLogout} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl text-sm transition-colors">
             התנתקות
