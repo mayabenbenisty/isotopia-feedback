@@ -64,64 +64,105 @@ export interface Goal {
   comment: string
 }
 
+// Minimum characters required for an open-text answer (so answers can't be skipped).
+export const MIN_OPEN_CHARS = 5
+
+export interface OpenQuestion {
+  id: string
+  label: string
+  type?: 'text' | 'yesno'
+  // Only shown when another answer has a given value (e.g. burnout follow-up when burnout = 'yes')
+  conditionalOn?: { id: string; value: string }
+  // Internal field — never included in the employee's emailed copy
+  internal?: boolean
+}
+
+// Part A – rating items (0–4 scale), shared keys so employee & manager answers align
 export const REVIEW_CATEGORIES = [
   {
     id: 'professionalism',
     label: 'מקצוענות',
     items: [
-      'ידע מקצועי ומומחיות בתחום',
-      'עמידה בלוחות זמנים ומועדי הגשה',
-      'יכולת תכנון וסדר עדיפויות',
-      'פתרון בעיות ויוזמה',
+      'מפגן ידע מקצועי בתחום העיסוק',
+      'עובד ע"פ הנהלים המקובלים',
+      'עובד לפי תכנון ומפגין סדר וארגון בביצוע המשימות',
+      'עומד בלוחות הזמנים',
     ],
   },
   {
     id: 'quality',
     label: 'איכות',
     items: [
-      'דיוק ואיכות תפוקות',
-      'תשומת לב לפרטים',
-      'אחריות על תוצאות',
+      'מתמודד היטב עם תקלות ובלת"מים',
+      'ממלא בצורה איכותית את המשימות',
+      'פועל ביעילות במצבי לחץ ועומס',
+      'מקפיד על דיווח מלא ומהימן לממונים',
     ],
   },
   {
     id: 'teamwork',
     label: 'עבודת צוות ויחסי אנוש',
     items: [
-      'שיתוף פעולה עם עמיתים',
-      'תקשורת פתוחה וברורה',
-      'תמיכה וסיוע לחברי צוות',
-      'גמישות ויכולת הסתגלות',
+      'יוצר קשרי עבודה טובים',
+      'מקבל ביקורת מעמיתים וממונים באופן ענייני',
+      'עובד היטב בצוות ובממשקים',
+      'מצליח להתמודד היטב עם קונפליקטים בעבודה',
+      'מסייע לעמיתים בעת הצורך',
     ],
   },
   {
     id: 'values',
     label: 'התנהגות מנותבת ערכים',
     items: [
-      'מחויבות לערכי החברה',
-      'יושרה ואמינות',
-      'גישה חיובית ומוטיבציה',
+      'מגלה מוטיבציה ללמוד ולהתפתח מקצועית',
+      'משמש דוגמה לאחרים',
+      'מקפיד על יושרה, אמינות ואתיקה מקצועית',
+      'מפגין מחויבות ומסירות לתפקיד',
+      'מגלה מעורבות ולוקח חלק פעיל גם במשימות שאינן בתחום אחריותו הישירה',
     ],
   },
 ]
 
-export const OPEN_QUESTIONS_MANAGER = [
-  { id: 'excellence', label: 'הצטיינות – במה העובד בלט לטובה?' },
-  { id: 'challenges', label: 'קשיים – אילו אתגרים ניתן לשפר?' },
-  { id: 'burnout', label: 'שחיקה – האם ישנם סימנים לשחיקה?' },
-  { id: 'improvement', label: 'נקודות לשיפור' },
-  { id: 'promotion', label: 'מוכנות לקידום / שינוי תפקיד' },
+export const OPEN_QUESTIONS_MANAGER: OpenQuestion[] = [
+  { id: 'excellence', label: 'תאר משימות בהן העובד הצטיין / בלט לטובה' },
+  { id: 'difficulty', label: 'תאר משימות בהן העובד התקשה' },
+  { id: 'failure', label: 'תאר משימות בהן העובד נכשל' },
+  { id: 'burnout', label: 'האם אתה חש כי ישנה אצל העובד שחיקה, והאם תפקודו נפגע כתוצאה מכך?', type: 'yesno' },
+  { id: 'burnout_detail', label: 'כיצד לדעתך ניתן לשפר את תפקודו?', conditionalOn: { id: 'burnout', value: 'yes' } },
+  { id: 'positives', label: 'ציין נקודות חיוביות בתפקודו של המוערך' },
+  { id: 'improvements', label: 'ציין נקודות לשיפור בתפקודו של המוערך' },
+  { id: 'promotion', label: 'האם לדעתך יש מקום לקידומו של העובד בחברה? אם כן, לאיזה תפקיד?', internal: true },
 ]
 
-export const OPEN_QUESTIONS_EMPLOYEE = [
-  { id: 'excellence', label: 'הצטיינות – במה בלטת לטובה לדעתך?' },
-  { id: 'challenges', label: 'קשיים – אילו אתגרים נתקלת בהם?' },
-  { id: 'burnout', label: 'שחיקה – האם אתה חש שחיקה כלשהי?' },
-  { id: 'improvement', label: 'נקודות לשיפור עצמי' },
+export const OPEN_QUESTIONS_EMPLOYEE: OpenQuestion[] = [
+  { id: 'excellence', label: 'תאר משימות בהן הצטיינת / בלטת לטובה' },
+  { id: 'difficulty', label: 'תאר משימות בהן התקשית / נכשלת' },
+  { id: 'burnout', label: 'האם אתה חש כי ישנה אצלך שחיקה, והאם תפקודך נפגע כתוצאה מכך?', type: 'yesno' },
+  { id: 'burnout_detail', label: 'כיצד לדעתך ניתן לשפר את תפקודך?', conditionalOn: { id: 'burnout', value: 'yes' } },
+  { id: 'positives', label: 'ציין נקודות חיוביות בתפקודך' },
+  { id: 'improvements', label: 'ציין נקודות לשיפור בתפקודך' },
 ]
 
+// Part B – fit assessment (manager only, INTERNAL — not shown to employee)
 export const FIT_OPTIONS = [
-  { value: 'a', label: 'א – מתאים מאוד לתפקיד' },
-  { value: 'b', label: 'ב – מתאים לתפקיד' },
-  { value: 'c', label: 'ג – נדרש שיפור' },
+  { value: 'a', label: 'א. מתאים לתפקידו ומבצע אותו כנדרש' },
+  { value: 'b', label: 'ב. אינו מתאים לתפקיד הנוכחי, מומלץ להעבירו לתפקיד אחר בחברה' },
+  { value: 'c', label: 'ג. אינו מתאים לתפקיד ואינו מתאים לאופי החברה' },
+]
+
+// Part C – organizational values assessment (manager only)
+export const ORG_VALUES = [
+  { id: 'focus', value: 'מיקוד', desc: 'הפרדה בין מטרות טווח ארוך וקצר, הגדרת תעדופים; מיקוד הצוות במשימות והתמודדות עם אי-ודאות' },
+  { id: 'commitment', value: 'מחויבות', desc: 'השלמת משימות בצורה מקצועית ומלאה; הירתמות ליעדים מאתגרים ומניעת עיכובים' },
+  { id: 'excellence', value: 'מצוינות', desc: 'הוצאת תוצרים ברמה גבוהה; שליטה בפרטים, נתונים ועובדות' },
+  { id: 'collaboration', value: 'שיתוף פעולה ודבֵקוּת', desc: 'שיתוף הממשקים במשימות ויצירת תחושת צוות; עידוד עבודה ישירה בין צוותים' },
+  { id: 'initiative', value: 'יוזמה ותעוזה', desc: 'נטילת יוזמה מול משימות הנהלה; היערכות מראש לאירועים וסיכונים' },
+  { id: 'wellbeing', value: 'רווחה והעצמת העובד', desc: 'יצירת מחוברות ומחויבות של העובדים לפי הערכים; עידוד יוזמה ועבודה עצמאית' },
+]
+
+// Final manager summary score (1–3)
+export const FINAL_SCORE_OPTIONS = [
+  { value: 1, label: 'מתחת לציפיות', desc: 'העובד לא עמד בחלק גדול מהיעדים האישיים שנקבעו, ולא מילא את כל המשימות בזמן ובאיכות המצופים.' },
+  { value: 2, label: 'עמידה מלאה בציפיות', desc: 'העובד השיג את כל היעדים שנקבעו במלואם, והפגין ביצועים טובים בכל התחומים מול האתגרים והשינויים.' },
+  { value: 3, label: 'מעבר לציפיות', desc: 'העובד עשה מעבר למצופה, הפגין תוצאות מעל המוגדר, פעל מעבר לתפקידו והשפיע על תוצאות הצוות.' },
 ]
