@@ -14,8 +14,8 @@ export async function POST(req: Request) {
   const { data: userData, error: userErr } = await admin.auth.getUser(token)
   if (userErr || !userData.user) return NextResponse.json({ error: 'הרשאה לא תקינה' }, { status: 401 })
   const { data: caller } = await admin.from('profiles').select('role, is_admin').eq('id', userData.user.id).single()
-  if (!caller || (caller.role !== 'hr' && !caller.is_admin)) {
-    return NextResponse.json({ error: 'רק HR יכול לפתוח תקופת משוב' }, { status: 403 })
+  if (!caller || !caller.is_admin) {
+    return NextResponse.json({ error: 'רק אדמין (HR ראשי) יכול לפתוח תקופת משוב' }, { status: 403 })
   }
 
   if (!period_id) return NextResponse.json({ error: 'חסרה תקופת משוב' }, { status: 400 })

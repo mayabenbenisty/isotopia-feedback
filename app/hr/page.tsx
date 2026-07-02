@@ -25,6 +25,7 @@ export default function HRDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('all')
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, in_progress: 0, employee_done: 0, completed: 0 })
   const [loading, setLoading] = useState(true)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'periods'>('dashboard')
 
   useEffect(() => {
@@ -36,9 +37,10 @@ export default function HRDashboard() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
 
-    const { data: profile } = await supabase.from('profiles').select('role, must_change_password').eq('id', user.id).single()
+    const { data: profile } = await supabase.from('profiles').select('role, must_change_password, is_admin').eq('id', user.id).single()
     if (profile?.must_change_password) { router.push('/change-password'); return }
     if (profile?.role !== 'hr') { router.push('/'); return }
+    setIsAdmin(profile?.is_admin === true)
 
     const [{ data: periodsData }, { data: reviewsData }] = await Promise.all([
       supabase.from('review_periods').select('*').order('created_at', { ascending: false }),
@@ -131,7 +133,7 @@ export default function HRDashboard() {
           {[
             { id: 'dashboard', label: 'דשבורד' },
             { id: 'employees', label: 'עובדים ומנהלים' },
-            { id: 'periods', label: 'תקופות משוב' },
+            ...(isAdmin ? [{ id: 'periods', label: 'תקופות משוב' }] : []),
           ].map(tab => (
             <button
               key={tab.id}
