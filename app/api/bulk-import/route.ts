@@ -48,6 +48,20 @@ export async function POST(req: Request) {
     if (p.email) byEmail.set(String(p.email).toLowerCase(), p.id)
   }
 
+  // Existing auth users by email — lets us re-link people whose auth account
+  // was already created on a previous (partially failed) run, without duplicating.
+  const authByEmail = new Map<string, string>()
+  {
+    let page = 1
+    for (;;) {
+      const { data: list } = await admin.auth.admin.listUsers({ page, perPage: 200 })
+      const users = list?.users || []
+      for (const u of users) { if (u.email) authByEmail.set(u.email.toLowerCase(), u.id) }
+      if (users.length < 200) break
+      page++
+    }
+  }
+
   // --- Pass 1: create or update each person (no manager link yet) ---
   for (const r of rows) {
     const empNo = String(r.employee_number || '').trim()
@@ -75,22 +89,28 @@ export async function POST(req: Request) {
       result.updated++
     } else {
       const loginEmail = `${empNo}@isotopia.internal`
-      const { data: authData, error: authError } = await admin.auth.admin.createUser({
-        email: loginEmail,
-        password: INITIAL_PASSWORD,
-        email_confirm: true,
-      })
-      if (authError || !authData.user) {
-        result.errors.push(`יצירת ${r.full_name} (${empNo}): ${authError?.message || 'שגיאה'}`)
-        continue
+      // Reuse an already-created auth account if one exists (re-run safety),
+      // otherwise create a fresh one.
+      let authId = authByEmail.get(loginEmail.toLowerCase()) || (email ? authByEmail.get(email.toLowerCase()) : undefined)
+      if (!authId) {
+        const { data: authData, error: authError } = await admin.auth.admin.createUser({
+          email: loginEmail,
+          password: INITIAL_PASSWORD,
+          email_confirm: true,
+        })
+        if (authError || !authData.user) {
+          result.errors.push(`יצירת ${r.full_name} (${empNo}): ${authError?.message || 'שגיאה'}`)
+          continue
+        }
+        authId = authData.user.id
       }
-      const { error: profErr } = await admin.from('profiles').insert({
-        id: authData.user.id,
+      const { error: profErr } = await admin.from('profiles').upsert({
+        id: authId,
         ...profileFields,
         must_change_password: true,
       })
       if (profErr) { result.errors.push(`פרופיל ${r.full_name}: ${profErr.message}`); continue }
-      byEmpNo.set(empNo, authData.user.id)
+      byEmpNo.set(empNo, authId)
       result.created++
     }
   }
