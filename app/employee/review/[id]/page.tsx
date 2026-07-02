@@ -155,6 +155,16 @@ export default function EmployeeReviewPage() {
 
         {activeSection === 0 && (
           <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm p-4 text-sm text-gray-600">
+              <p className="font-semibold text-gray-800 mb-2">סקאלת הדירוג:</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
+                <span><b>1</b> – מתחת לציפיות</span>
+                <span><b>2</b> – נדרש שיפור</span>
+                <span><b>3</b> – עומד בציפיות</span>
+                <span><b>4</b> – מעל הציפיות</span>
+                <span><b>0</b> – לא רלוונטי</span>
+              </div>
+            </div>
             {REVIEW_CATEGORIES.map(cat => (
               <div key={cat.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100" style={{ background: '#f3eeff' }}>

@@ -39,11 +39,18 @@ export default function HRReviewPage() {
             <h1 className="text-xl font-bold">משוב: {review.employee?.full_name}</h1>
             <p className="text-xs opacity-70">מנהל: {review.manager?.full_name} · {review.period?.name}</p>
           </div>
-          <button onClick={() => window.print()} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl text-sm">🖨️ הדפסה</button>
+          <button onClick={() => window.print()} className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl text-sm">🖨️ הדפסה / שמירה כ-PDF</button>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        {/* Printable title with names */}
+        <div className="text-center">
+          <h1 className="text-2xl font-bold" style={{ color: '#4A2D7F' }}>משוב והערכת עובדים – Isotopia</h1>
+          <p className="text-gray-700 mt-1">
+            <b>עובד:</b> {review.employee?.full_name}&nbsp;&nbsp;·&nbsp;&nbsp;<b>מנהל:</b> {review.manager?.full_name}&nbsp;&nbsp;·&nbsp;&nbsp;{review.period?.name}
+          </p>
+        </div>
         {/* Part A – scores */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h2 className="font-bold text-lg text-purple-800 mb-4">חלק א׳ – דירוגים</h2>
