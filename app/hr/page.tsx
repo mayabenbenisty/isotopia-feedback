@@ -330,6 +330,7 @@ function EmployeesTab() {
   const [form, setForm] = useState({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
+  const [empFilter, setEmpFilter] = useState<'active' | 'inactive'>('active')
   const [importRows, setImportRows] = useState<ImportRow[]>([])
   const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null)
   const [importing, setImporting] = useState(false)
@@ -445,6 +446,9 @@ function EmployeesTab() {
   }
 
   const managers = profiles.filter(p => p.role === 'manager')
+  const activeProfiles = profiles.filter(p => p.active !== false)
+  const inactiveProfiles = profiles.filter(p => p.active === false)
+  const shown = empFilter === 'active' ? activeProfiles : inactiveProfiles
 
   if (loading) return <div className="text-center py-12 text-gray-400">טוען...</div>
 
@@ -495,7 +499,7 @@ function EmployeesTab() {
       </div>
 
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800">עובדים ומנהלים ({profiles.length})</h2>
+        <h2 className="text-xl font-bold text-gray-800">עובדים ומנהלים</h2>
         <button
           onClick={() => {
             if (!showAdd) { setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' }); setMsg('') }
@@ -571,7 +575,22 @@ function EmployeesTab() {
         </div>
       )}
 
-      <p className="text-sm text-gray-500 mb-2">💡 לחצי על שורה כדי לערוך עובד (תפקיד, מנהל/צוות, מיקום, סטטוס, איפוס סיסמה).</p>
+      <div className="flex gap-2 mb-3">
+        <button
+          onClick={() => setEmpFilter('active')}
+          className={`px-4 py-2 rounded-xl text-sm font-medium ${empFilter === 'active' ? 'text-white' : 'bg-gray-100 text-gray-500'}`}
+          style={empFilter === 'active' ? { background: '#4A2D7F' } : undefined}
+        >
+          פעילים ({activeProfiles.length})
+        </button>
+        <button
+          onClick={() => setEmpFilter('inactive')}
+          className={`px-4 py-2 rounded-xl text-sm font-medium ${empFilter === 'inactive' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500'}`}
+        >
+          עזבו ({inactiveProfiles.length})
+        </button>
+      </div>
+      <p className="text-sm text-gray-500 mb-2">💡 לחצי על שורה כדי לערוך עובד (תפקיד, מנהל/צוות, מיקום, סטטוס, איפוס סיסמה). עובד שמסומן &quot;עזב&quot; עובר לרשימת ה&quot;עזבו&quot; ולא מופיע כאן.</p>
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -586,7 +605,10 @@ function EmployeesTab() {
             </tr>
           </thead>
           <tbody>
-            {profiles.map((p, i) => (
+            {shown.length === 0 && (
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">{empFilter === 'active' ? 'אין עובדים פעילים' : 'אין עובדים שעזבו'}</td></tr>
+            )}
+            {shown.map((p, i) => (
               <tr
                 key={p.id}
                 onClick={() => openEdit(p)}
