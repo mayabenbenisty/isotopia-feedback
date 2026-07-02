@@ -433,6 +433,16 @@ function EmployeesTab() {
     setEditSaving(false)
   }
 
+  async function deleteUser() {
+    if (!editUser) return
+    if (!window.confirm(`למחוק לצמיתות את ${editUser.full_name}?\nהפעולה בלתי הפיכה ותמחק גם את המשובים המשויכים אליו.`)) return
+    setEditSaving(true); setEditMsg('')
+    const json = await callAdmin('delete', {})
+    if (json.error) setEditMsg('שגיאה: ' + json.error)
+    else { setEditUser(null); loadProfiles() }
+    setEditSaving(false)
+  }
+
   const managers = profiles.filter(p => p.role === 'manager')
 
   if (loading) return <div className="text-center py-12 text-gray-400">טוען...</div>
@@ -679,6 +689,9 @@ function EmployeesTab() {
               <button onClick={resetPwd} disabled={editSaving} className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600">
                 איפוס סיסמה
               </button>
+              <button onClick={deleteUser} disabled={editSaving} className="px-4 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50">
+                מחיקת עובד
+              </button>
               <button onClick={() => setEditUser(null)} className="px-4 py-2 rounded-xl text-sm font-medium text-gray-500">ביטול</button>
             </div>
           </div>
@@ -710,6 +723,21 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
     else setOpenMsg(`✓ נפתחו ${json.created} משובים חדשים (${json.skipped} כבר היו קיימים).`)
     setOpeningId(null)
     onRefresh()
+  }
+
+  async function deletePeriod(id: string, name: string) {
+    if (!window.confirm(`למחוק את תקופת "${name}"?\nפעולה זו תמחק גם את כל המשובים שנפתחו בתקופה הזו. בלתי הפיך.`)) return
+    setOpenMsg('')
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/delete-period', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session?.access_token, period_id: id }),
+    })
+    const json = await res.json()
+    if (json.error) setOpenMsg('שגיאה: ' + json.error)
+    else { setOpenMsg('✓ התקופה נמחקה.'); onRefresh() }
   }
 
   async function addPeriod() {
@@ -811,6 +839,12 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
                 className={`px-4 py-2 rounded-xl text-sm font-medium ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
               >
                 {p.is_active ? '✓ פעיל' : 'לא פעיל'}
+              </button>
+              <button
+                onClick={() => deletePeriod(p.id, p.name)}
+                className="px-3 py-2 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50"
+              >
+                מחיקה
               </button>
             </div>
           </div>

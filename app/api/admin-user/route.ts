@@ -48,5 +48,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true })
   }
 
+  // --- Delete a user entirely (profile + auth + their reviews) ---
+  if (action === 'delete') {
+    // Detach anyone who reported to this user so we don't orphan them
+    await admin.from('profiles').update({ manager_id: null }).eq('manager_id', id)
+    // Remove reviews where this user is the employee or the manager
+    await admin.from('reviews').delete().or(`employee_id.eq.${id},manager_id.eq.${id}`)
+    await admin.from('profiles').delete().eq('id', id)
+    await admin.auth.admin.deleteUser(id)
+    return NextResponse.json({ ok: true })
+  }
+
   return NextResponse.json({ error: 'פעולה לא מוכרת' }, { status: 400 })
 }
