@@ -666,6 +666,24 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: '', type: 'semi_annual', site: 'israel', start_date: '', end_date: '' })
   const [saving, setSaving] = useState(false)
+  const [openingId, setOpeningId] = useState<string | null>(null)
+  const [openMsg, setOpenMsg] = useState('')
+
+  async function openPeriod(id: string) {
+    setOpeningId(id); setOpenMsg('')
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/open-period', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: session?.access_token, period_id: id }),
+    })
+    const json = await res.json()
+    if (json.error) setOpenMsg('שגיאה: ' + json.error)
+    else setOpenMsg(`✓ נפתחו ${json.created} משובים חדשים (${json.skipped} כבר היו קיימים).`)
+    setOpeningId(null)
+    onRefresh()
+  }
 
   async function addPeriod() {
     setSaving(true)
@@ -740,14 +758,25 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
                 {p.type === 'semi_annual' ? 'חצי שנתי' : 'שנתי'} · {p.site === 'israel' ? '🇮🇱 ישראל' : '🇺🇸 ארה״ב'} · {p.start_date} עד {p.end_date}
               </p>
             </div>
-            <button
-              onClick={() => toggleActive(p.id, p.is_active)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
-            >
-              {p.is_active ? '✓ פעיל' : 'לא פעיל'}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => openPeriod(p.id)}
+                disabled={openingId === p.id}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-60"
+                style={{ background: '#4A2D7F' }}
+              >
+                {openingId === p.id ? 'פותח...' : '📝 פתיחת משובים לעובדים'}
+              </button>
+              <button
+                onClick={() => toggleActive(p.id, p.is_active)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium ${p.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+              >
+                {p.is_active ? '✓ פעיל' : 'לא פעיל'}
+              </button>
+            </div>
           </div>
         ))}
+        {openMsg && <p className={`text-sm ${openMsg.includes('שגיאה') ? 'text-red-600' : 'text-green-600'}`}>{openMsg}</p>}
         {periods.length === 0 && <p className="text-center text-gray-400 py-8">אין תקופות משוב עדיין</p>}
       </div>
     </div>

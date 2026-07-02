@@ -4,7 +4,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { ScoreSelector } from '@/components/ScoreSelector'
 import type { Review, ReviewPeriod } from '@/lib/types'
-import { REVIEW_CATEGORIES, OPEN_QUESTIONS_EMPLOYEE } from '@/lib/types'
+import { REVIEW_CATEGORIES, OPEN_QUESTIONS_EMPLOYEE, MIN_OPEN_CHARS } from '@/lib/types'
 
 type FullReview = Review & { period: ReviewPeriod }
 
@@ -17,8 +17,33 @@ export default function EmployeeReviewPage() {
   const [loading, setLoading] = useState(true)
   const [activeSection, setActiveSection] = useState(0)
   const [submitted, setSubmitted] = useState(false)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => { loadReview() }, [id])
+
+  function isVisible(q: { conditionalOn?: { id: string; value: string } }) {
+    if (!q.conditionalOn) return true
+    return review?.employee_open[q.conditionalOn.id] === q.conditionalOn.value
+  }
+
+  function validate(): string | null {
+    if (!review) return 'שגיאה'
+    for (const cat of REVIEW_CATEGORIES) {
+      for (const item of cat.items) {
+        if (review.employee_scores[`${cat.id}__${item}`] === undefined) return 'יש לדרג את כל השאלות בחלק א׳ (דירוגים)'
+      }
+    }
+    for (const q of OPEN_QUESTIONS_EMPLOYEE) {
+      if (!isVisible(q)) continue
+      const val = (review.employee_open[q.id] || '').trim()
+      if (q.type === 'yesno') {
+        if (val !== 'yes' && val !== 'no') return 'יש לענות על כל השאלות בחלק ב׳'
+      } else if (val.length < MIN_OPEN_CHARS) {
+        return `יש לענות על כל השאלות הפתוחות (לפחות ${MIN_OPEN_CHARS} תווים לכל תשובה)`
+      }
+    }
+    return null
+  }
 
   async function loadReview() {
     const supabase = createClient()
@@ -63,6 +88,13 @@ export default function EmployeeReviewPage() {
   }
 
   async function submitSelfReview() {
+    const err = validate()
+    if (err) {
+      setFormError(err)
+      if (err.includes('חלק א׳')) setActiveSection(0)
+      return
+    }
+    setFormError('')
     setSaving(true)
     const supabase = createClient()
     await supabase.from('reviews').update({ status: 'employee_done' }).eq('id', id)
@@ -147,19 +179,37 @@ export default function EmployeeReviewPage() {
 
         {activeSection === 1 && (
           <div className="space-y-5">
-            {OPEN_QUESTIONS_EMPLOYEE.map(q => (
+            {OPEN_QUESTIONS_EMPLOYEE.filter(isVisible).map(q => (
               <div key={q.id} className="bg-white rounded-2xl shadow-sm p-6">
                 <label className="font-semibold text-gray-800 block mb-3">{q.label}</label>
-                <textarea
-                  value={review.employee_open[q.id] || ''}
-                  onChange={e => !isReadonly && updateOpen(q.id, e.target.value)}
-                  readOnly={isReadonly}
-                  rows={4}
-                  placeholder="כתוב את תשובתך..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
-                />
+                {q.type === 'yesno' ? (
+                  <div className="flex gap-3">
+                    {([['yes', 'כן'], ['no', 'לא']] as const).map(([val, lbl]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        disabled={isReadonly}
+                        onClick={() => !isReadonly && updateOpen(q.id, val)}
+                        className={`px-8 py-2 rounded-xl border-2 text-sm font-medium ${review.employee_open[q.id] === val ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500'}`}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <textarea
+                    value={review.employee_open[q.id] || ''}
+                    onChange={e => !isReadonly && updateOpen(q.id, e.target.value)}
+                    readOnly={isReadonly}
+                    rows={4}
+                    placeholder={`כתוב את תשובתך (לפחות ${MIN_OPEN_CHARS} תווים)...`}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
+                  />
+                )}
               </div>
             ))}
+
+            {formError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{formError}</div>}
 
             {!isReadonly && (
               <button

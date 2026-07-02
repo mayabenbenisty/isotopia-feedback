@@ -47,6 +47,7 @@ export interface Review {
   final_score_override: boolean
   manager_summary: string | null
   employee_response: string | null
+  part_c: PartC
   approved_at: string | null
   created_at: string
   updated_at: string
@@ -62,6 +63,15 @@ export interface Goal {
   description: string
   achieved: boolean | null
   comment: string
+}
+
+// Part C (manager only) — unit/dept goals, achievements & improvements, org-values assessment
+export interface PartC {
+  unit_goals?: string
+  dept_goals?: string
+  achievements?: { title: string; detail: string }[]
+  improvements?: { title: string; detail: string }[]
+  org_values?: Record<string, string>
 }
 
 // Minimum characters required for an open-text answer (so answers can't be skipped).

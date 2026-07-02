@@ -3,8 +3,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { ScoreSelector } from '@/components/ScoreSelector'
-import type { Review, Profile, ReviewPeriod, Goal } from '@/lib/types'
-import { REVIEW_CATEGORIES, OPEN_QUESTIONS_MANAGER, FIT_OPTIONS } from '@/lib/types'
+import type { Review, Profile, ReviewPeriod, Goal, PartC } from '@/lib/types'
+import { REVIEW_CATEGORIES, OPEN_QUESTIONS_MANAGER, FIT_OPTIONS, ORG_VALUES, MIN_OPEN_CHARS } from '@/lib/types'
 
 type FullReview = Review & { employee: Profile; period: ReviewPeriod }
 
@@ -16,6 +16,7 @@ export default function ManagerReviewPage() {
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeSection, setActiveSection] = useState(0)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => { loadReview() }, [id])
 
@@ -42,6 +43,7 @@ export default function ManagerReviewPage() {
       final_score: updated.final_score,
       final_score_override: updated.final_score_override,
       manager_summary: updated.manager_summary,
+      part_c: updated.part_c,
       status: updated.status,
     }).eq('id', id)
     setSaving(false)
@@ -65,6 +67,37 @@ export default function ManagerReviewPage() {
   function updateOpen(field: string, value: string) {
     if (!review) return
     update({ manager_open: { ...review.manager_open, [field]: value } })
+  }
+
+  function updatePartC(patch: Partial<PartC>) {
+    if (!review) return
+    update({ part_c: { ...(review.part_c || {}), ...patch } })
+  }
+
+  function isVisible(q: { conditionalOn?: { id: string; value: string } }) {
+    if (!q.conditionalOn) return true
+    return review?.manager_open[q.conditionalOn.id] === q.conditionalOn.value
+  }
+
+  function validate(): string | null {
+    if (!review) return 'שגיאה'
+    for (const cat of REVIEW_CATEGORIES) {
+      for (const item of cat.items) {
+        if (review.manager_scores[`${cat.id}__${item}`] === undefined) return 'יש לדרג את כל השאלות בחלק א׳ (דירוגים)'
+      }
+    }
+    for (const q of OPEN_QUESTIONS_MANAGER) {
+      if (!isVisible(q)) continue
+      const val = (review.manager_open[q.id] || '').trim()
+      if (q.type === 'yesno') {
+        if (val !== 'yes' && val !== 'no') return 'יש לענות על כל השאלות בחלק ב׳'
+      } else if (val.length < MIN_OPEN_CHARS) {
+        return `יש לענות על כל השאלות הפתוחות (לפחות ${MIN_OPEN_CHARS} תווים)`
+      }
+    }
+    if (!review.fit_assessment) return 'יש לבחור התאמה לתפקיד (חלק ב׳)'
+    if (!(review.manager_summary || '').trim()) return 'יש למלא סיכום שנתי (חלק ג׳)'
+    return null
   }
 
   function calcAutoScore(): 1 | 2 | 3 {
@@ -99,6 +132,15 @@ export default function ManagerReviewPage() {
 
   async function approveReview() {
     if (!review) return
+    const err = validate()
+    if (err) {
+      setFormError(err)
+      if (err.includes('חלק א׳')) setActiveSection(0)
+      else if (err.includes('חלק ב׳')) setActiveSection(1)
+      else setActiveSection(2)
+      return
+    }
+    setFormError('')
     setSaving(true)
     const supabase = createClient()
     const finalScore = review.final_score_override ? review.final_score : calcAutoScore()
@@ -172,6 +214,9 @@ export default function ManagerReviewPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8">
+        {formError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm mb-5">{formError}</div>
+        )}
         {/* Section A – Scores */}
         {activeSection === 0 && (
           <div className="space-y-6">
@@ -224,22 +269,42 @@ export default function ManagerReviewPage() {
         {/* Section B – Open questions */}
         {activeSection === 1 && (
           <div className="space-y-5">
-            {OPEN_QUESTIONS_MANAGER.map(q => (
+            {OPEN_QUESTIONS_MANAGER.filter(isVisible).map(q => (
               <div key={q.id} className="bg-white rounded-2xl shadow-sm p-6">
-                <label className="font-semibold text-gray-800 block mb-3">{q.label}</label>
+                <label className="font-semibold text-gray-800 block mb-3">
+                  {q.label}
+                  {q.internal && <span className="mr-2 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">פנימי – לא נשלח לעובד</span>}
+                </label>
                 {review.employee_open[q.id] && (
                   <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3 text-sm text-blue-700">
-                    <span className="font-medium">תשובת העובד: </span>{review.employee_open[q.id]}
+                    <span className="font-medium">תשובת העובד: </span>
+                    {q.type === 'yesno' ? (review.employee_open[q.id] === 'yes' ? 'כן' : 'לא') : review.employee_open[q.id]}
                   </div>
                 )}
-                <textarea
-                  value={review.manager_open[q.id] || ''}
-                  onChange={e => !isReadonly && updateOpen(q.id, e.target.value)}
-                  readOnly={isReadonly}
-                  rows={4}
-                  placeholder="כתוב את התייחסותך..."
-                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
-                />
+                {q.type === 'yesno' ? (
+                  <div className="flex gap-3">
+                    {([['yes', 'כן'], ['no', 'לא']] as const).map(([val, lbl]) => (
+                      <button
+                        key={val}
+                        type="button"
+                        disabled={isReadonly}
+                        onClick={() => !isReadonly && updateOpen(q.id, val)}
+                        className={`px-8 py-2 rounded-xl border-2 text-sm font-medium ${review.manager_open[q.id] === val ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500'}`}
+                      >
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <textarea
+                    value={review.manager_open[q.id] || ''}
+                    onChange={e => !isReadonly && updateOpen(q.id, e.target.value)}
+                    readOnly={isReadonly}
+                    rows={4}
+                    placeholder={`כתוב את התייחסותך (לפחות ${MIN_OPEN_CHARS} תווים)...`}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 resize-none"
+                  />
+                )}
               </div>
             ))}
 
@@ -319,6 +384,42 @@ export default function ManagerReviewPage() {
                       readOnly={isReadonly}
                       placeholder="הערות..."
                       className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Unit & department goals */}
+            <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+              <h3 className="font-bold text-gray-800">יעדים (מילוי ע"י המנהל)</h3>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">יעדי היחידה</label>
+                <textarea value={review.part_c?.unit_goals || ''} onChange={e => !isReadonly && updatePartC({ unit_goals: e.target.value })} readOnly={isReadonly} rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-purple-300" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1 block">יעדי מחלקה</label>
+                <textarea value={review.part_c?.dept_goals || ''} onChange={e => !isReadonly && updatePartC({ dept_goals: e.target.value })} readOnly={isReadonly} rows={2} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-purple-300" />
+              </div>
+            </div>
+
+            {/* Organizational values */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100" style={{ background: '#f3eeff' }}>
+                <h3 className="font-bold text-gray-800">עבודה בהתאם לערכי החברה</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                {ORG_VALUES.map(v => (
+                  <div key={v.id}>
+                    <p className="font-medium text-gray-800 text-sm">{v.value}</p>
+                    <p className="text-xs text-gray-400 mb-1">{v.desc}</p>
+                    <textarea
+                      value={review.part_c?.org_values?.[v.id] || ''}
+                      onChange={e => !isReadonly && updatePartC({ org_values: { ...(review.part_c?.org_values || {}), [v.id]: e.target.value } })}
+                      readOnly={isReadonly}
+                      rows={2}
+                      placeholder="כיצד זה מתבטא בעבודתו?"
+                      className="w-full border border-gray-100 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-purple-300"
                     />
                   </div>
                 ))}
@@ -436,9 +537,12 @@ function buildEmployeeEmailHTML(review: FullReview): string {
         <p>מצורף סיכום המשוב שלך לתקופה: <strong>${review.period?.name}</strong></p>
         ${scores}
         <h3 style="color: #4A2D7F;">שאלות פתוחות</h3>
-        ${OPEN_QUESTIONS_MANAGER.filter(q => q.id !== 'promotion').map(q =>
-          review.manager_open[q.id] ? `<p><strong>${q.label}:</strong><br/>${review.manager_open[q.id]}</p>` : ''
-        ).join('')}
+        ${OPEN_QUESTIONS_MANAGER.filter(q => !q.internal).map(q => {
+          const v = review.manager_open[q.id]
+          if (!v) return ''
+          const display = q.type === 'yesno' ? (v === 'yes' ? 'כן' : 'לא') : v
+          return `<p><strong>${q.label}:</strong><br/>${display}</p>`
+        }).join('')}
       </div>
       <p style="text-align: center; color: #999; font-size: 12px;">מערכת משוב והערכת עובדים | Isotopia</p>
     </div>
