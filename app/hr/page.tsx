@@ -26,7 +26,7 @@ export default function HRDashboard() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('all')
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, in_progress: 0, employee_done: 0, completed: 0 })
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'periods'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'employees' | 'periods' | 'view_as_manager'>('dashboard')
 
   useEffect(() => {
     loadData()
@@ -133,6 +133,7 @@ export default function HRDashboard() {
             { id: 'dashboard', label: 'דשבורד' },
             { id: 'employees', label: 'עובדים ומנהלים' },
             { id: 'periods', label: 'תקופות משוב' },
+            { id: 'view_as_manager', label: 'צפייה כמנהל' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -232,6 +233,7 @@ export default function HRDashboard() {
 
         {activeTab === 'employees' && <EmployeesTab />}
         {activeTab === 'periods' && <PeriodsTab periods={periods} onRefresh={loadData} />}
+        {activeTab === 'view_as_manager' && <ViewAsManagerTab reviews={reviews} />}
       </main>
     </div>
   )
@@ -875,6 +877,132 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
         {openMsg && <p className={`text-sm ${openMsg.includes('שגיאה') ? 'text-red-600' : 'text-green-600'}`}>{openMsg}</p>}
         {periods.length === 0 && <p className="text-center text-gray-400 py-8">אין תקופות משוב עדיין</p>}
       </div>
+    </div>
+  )
+}
+
+// Lets HR see exactly what a manager's own panel shows (their team + review status),
+// reusing HR's already-unrestricted read access — no login-as-user, no password reset.
+function ViewAsManagerTab({ reviews }: { reviews: ReviewWithDetails[] }) {
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [selectedManagerId, setSelectedManagerId] = useState('')
+  const router = useRouter()
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient()
+      const { data } = await supabase.from('profiles').select('*').order('full_name')
+      setProfiles(data || [])
+      setLoading(false)
+    })()
+  }, [])
+
+  function statusLabel(s: string) {
+    return { pending: 'ממתין', employee_done: 'עובד סיים', in_progress: 'בתהליך', completed: 'הושלם' }[s] || s
+  }
+
+  function statusColor(s: string) {
+    return {
+      pending: 'bg-gray-100 text-gray-600',
+      employee_done: 'bg-blue-100 text-blue-700',
+      in_progress: 'bg-yellow-100 text-yellow-700',
+      completed: 'bg-green-100 text-green-700',
+    }[s] || 'bg-gray-100 text-gray-600'
+  }
+
+  const managers = profiles.filter(p => p.role === 'manager' && p.active !== false)
+  const team = selectedManagerId ? profiles.filter(p => p.manager_id === selectedManagerId).sort((a, b) => a.full_name.localeCompare(b.full_name)) : []
+  const managerReviews = selectedManagerId ? reviews.filter(r => r.manager_id === selectedManagerId) : []
+  const selectedManager = profiles.find(p => p.id === selectedManagerId)
+
+  if (loading) return <div className="text-center py-12 text-gray-400">טוען...</div>
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-gray-800 mb-2">צפייה כמנהל</h2>
+      <p className="text-sm text-gray-500 mb-5">
+        בחרי מנהל כדי לראות בדיוק את הצוות והמשובים שהוא רואה בפאנל שלו — לצפייה בלבד, בלי להתחבר בתור המנהל ובלי לגעת בסיסמה שלו.
+      </p>
+
+      <div className="mb-6">
+        <label className="text-sm text-gray-600 mb-1 block">מנהל</label>
+        <select
+          className="w-full max-w-sm border border-gray-200 rounded-xl px-3 py-2 text-sm"
+          value={selectedManagerId}
+          onChange={e => setSelectedManagerId(e.target.value)}
+        >
+          <option value="">בחר מנהל...</option>
+          {managers.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+        </select>
+      </div>
+
+      {selectedManagerId && (
+        <>
+          <p className="text-sm text-gray-500 mb-4">
+            פאנל מנהל של <b>{selectedManager?.full_name}</b> | {team.length} עובדים בצוות
+          </p>
+
+          {team.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400">
+              <p className="text-4xl mb-3">👥</p>
+              <p>אין עובדים בצוות של מנהל זה</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {team.map(emp => {
+                const empReviews = managerReviews.filter(r => r.employee_id === emp.id)
+                const activeReview = empReviews.find(r => r.status !== 'completed')
+                const lastCompleted = empReviews.find(r => r.status === 'completed')
+
+                return (
+                  <div key={emp.id} className="bg-white rounded-2xl shadow-sm p-5">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold"
+                          style={{ background: 'linear-gradient(135deg, #4A2D7F, #9B72B0)' }}>
+                          {emp.full_name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-800">{emp.full_name}</p>
+                          <p className="text-sm text-gray-500">{emp.email}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {activeReview && (
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor(activeReview.status)}`}>
+                            {statusLabel(activeReview.status)}
+                          </span>
+                        )}
+                        {activeReview ? (
+                          <button
+                            onClick={() => router.push(`/hr/review/${activeReview.id}`)}
+                            className="px-4 py-2 rounded-xl text-white text-sm font-medium"
+                            style={{ background: '#4A2D7F' }}
+                          >
+                            צפייה במשוב
+                          </button>
+                        ) : (
+                          <span className="text-sm text-gray-400">אין משוב פעיל</span>
+                        )}
+                        {lastCompleted && (
+                          <button
+                            onClick={() => router.push(`/hr/review/${lastCompleted.id}`)}
+                            className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600"
+                          >
+                            משוב קודם
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
