@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase'
+import { buildChildrenMap } from '@/lib/orgTree'
+import TeamReviewTree from '@/components/TeamReviewTree'
 import type { Profile, Review, ReviewPeriod } from '@/lib/types'
 
 type ReviewWithDetails = Review & {
@@ -881,13 +883,14 @@ function PeriodsTab({ periods, onRefresh }: { periods: ReviewPeriod[], onRefresh
   )
 }
 
-// Lets HR see exactly what a manager's own panel shows (their team + review status),
-// reusing HR's already-unrestricted read access — no login-as-user, no password reset.
+// Lets HR see exactly what a manager's own panel shows (their whole unit, cascaded
+// down through any sub-managers, + review status), reusing HR's already-unrestricted
+// read access — no login-as-user, no password reset. Always read-only (links to the
+// existing /hr/review/[id] view), regardless of how deep the selected manager's unit goes.
 function ViewAsManagerTab({ reviews }: { reviews: ReviewWithDetails[] }) {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedManagerId, setSelectedManagerId] = useState('')
-  const router = useRouter()
 
   useEffect(() => {
     (async () => {
@@ -898,23 +901,10 @@ function ViewAsManagerTab({ reviews }: { reviews: ReviewWithDetails[] }) {
     })()
   }, [])
 
-  function statusLabel(s: string) {
-    return { pending: 'ממתין', employee_done: 'עובד סיים', in_progress: 'בתהליך', completed: 'הושלם' }[s] || s
-  }
-
-  function statusColor(s: string) {
-    return {
-      pending: 'bg-gray-100 text-gray-600',
-      employee_done: 'bg-blue-100 text-blue-700',
-      in_progress: 'bg-yellow-100 text-yellow-700',
-      completed: 'bg-green-100 text-green-700',
-    }[s] || 'bg-gray-100 text-gray-600'
-  }
-
   const managers = profiles.filter(p => p.role === 'manager' && p.active !== false)
-  const team = selectedManagerId ? profiles.filter(p => p.manager_id === selectedManagerId).sort((a, b) => a.full_name.localeCompare(b.full_name)) : []
-  const managerReviews = selectedManagerId ? reviews.filter(r => r.manager_id === selectedManagerId) : []
   const selectedManager = profiles.find(p => p.id === selectedManagerId)
+  const childrenMap = buildChildrenMap(profiles)
+  const directReportsCount = (childrenMap.get(selectedManagerId) ?? []).length
 
   if (loading) return <div className="text-center py-12 text-gray-400">טוען...</div>
 
@@ -922,7 +912,7 @@ function ViewAsManagerTab({ reviews }: { reviews: ReviewWithDetails[] }) {
     <div>
       <h2 className="text-xl font-bold text-gray-800 mb-2">צפייה כמנהל</h2>
       <p className="text-sm text-gray-500 mb-5">
-        בחרי מנהל כדי לראות בדיוק את הצוות והמשובים שהוא רואה בפאנל שלו — לצפייה בלבד, בלי להתחבר בתור המנהל ובלי לגעת בסיסמה שלו.
+        בחרי מנהל כדי לראות בדיוק את היחידה שלו (כולל צוותים של מנהלים תחתיו, אם יש) והמשובים — לצפייה בלבד, בלי להתחבר בתור המנהל ובלי לגעת בסיסמה שלו.
       </p>
 
       <div className="mb-6">
@@ -940,67 +930,17 @@ function ViewAsManagerTab({ reviews }: { reviews: ReviewWithDetails[] }) {
       {selectedManagerId && (
         <>
           <p className="text-sm text-gray-500 mb-4">
-            פאנל מנהל של <b>{selectedManager?.full_name}</b> | {team.length} עובדים בצוות
+            פאנל מנהל של <b>{selectedManager?.full_name}</b> | {directReportsCount} עובדים בצוות הישיר
           </p>
-
-          {team.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-400">
-              <p className="text-4xl mb-3">👥</p>
-              <p>אין עובדים בצוות של מנהל זה</p>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {team.map(emp => {
-                const empReviews = managerReviews.filter(r => r.employee_id === emp.id)
-                const activeReview = empReviews.find(r => r.status !== 'completed')
-                const lastCompleted = empReviews.find(r => r.status === 'completed')
-
-                return (
-                  <div key={emp.id} className="bg-white rounded-2xl shadow-sm p-5">
-                    <div className="flex items-center justify-between flex-wrap gap-3">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold"
-                          style={{ background: 'linear-gradient(135deg, #4A2D7F, #9B72B0)' }}>
-                          {emp.full_name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-800">{emp.full_name}</p>
-                          <p className="text-sm text-gray-500">{emp.email}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {activeReview && (
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor(activeReview.status)}`}>
-                            {statusLabel(activeReview.status)}
-                          </span>
-                        )}
-                        {activeReview ? (
-                          <button
-                            onClick={() => router.push(`/hr/review/${activeReview.id}`)}
-                            className="px-4 py-2 rounded-xl text-white text-sm font-medium"
-                            style={{ background: '#4A2D7F' }}
-                          >
-                            צפייה במשוב
-                          </button>
-                        ) : (
-                          <span className="text-sm text-gray-400">אין משוב פעיל</span>
-                        )}
-                        {lastCompleted && (
-                          <button
-                            onClick={() => router.push(`/hr/review/${lastCompleted.id}`)}
-                            className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600"
-                          >
-                            משוב קודם
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          <TeamReviewTree
+            managerId={selectedManagerId}
+            childrenMap={childrenMap}
+            reviews={reviews}
+            viewerId=""
+            editLinkBase="/hr/review"
+            readOnlyLinkBase="/hr/review"
+            getActiveLabel={() => 'צפייה במשוב'}
+          />
         </>
       )}
     </div>
