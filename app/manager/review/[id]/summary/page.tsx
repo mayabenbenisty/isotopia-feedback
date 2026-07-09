@@ -51,7 +51,7 @@ export default function ManagerReviewSummaryPage() {
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
             <button onClick={() => router.push('/manager')} className="text-white/70 hover:text-white text-sm mb-1">← חזרה לפאנל</button>
-            <h1 className="text-xl font-bold">סיכום משוב לעובד: {review.employee?.full_name}</h1>
+            <h1 className="text-xl font-bold">📄 גרסה לעובד: {review.employee?.full_name}</h1>
           </div>
           <button
             onClick={printAndMarkSent}
@@ -65,15 +65,25 @@ export default function ManagerReviewSummaryPage() {
       <main className="max-w-4xl mx-auto px-6 py-8 space-y-6">
         <div className={`border-2 rounded-2xl p-5 print:hidden ${sent ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-300'}`}>
           <p className={`text-lg font-bold mb-1 ${sent ? 'text-green-800' : 'text-yellow-800'}`}>
-            {sent ? '✓ סומן כנשלח' : '⚠️ המשוב אושר — עכשיו צריך לשלוח אותו הלאה'}
+            {sent ? '✓ סומן כנשלח' : '⚠️ המשוב אושר — יש שני קבצים נפרדים לשלוח'}
           </p>
           <p className={`text-sm ${sent ? 'text-green-800' : 'text-yellow-800'}`}>
-            שמרו את הדף הזה כ-PDF (הכפתור למעלה) ושלחו אותו <b>גם לעובד/ת וגם למשאבי אנוש</b>, במייל או בכל דרך אחרת.
+            <b>1. הדף הזה</b> (📄 גרסה לעובד, ללא פרטים פנימיים) — שמרו כ-PDF בכפתור למעלה, ושלחו <b>לעובד/ת</b>.
           </p>
+          <p className={`text-sm mt-1 ${sent ? 'text-green-800' : 'text-yellow-800'}`}>
+            <b>2. מסמך מלא נפרד</b> (📁 לתיוק / למשאבי אנוש, כולל פרטים פנימיים) — <b>אין לשלוח אותו לעובד</b>.
+          </p>
+          <button
+            onClick={() => router.push(`/manager/review/${id}/internal`)}
+            className="mt-3 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold px-4 py-2 rounded-xl"
+          >
+            📁 פתיחת המסמך המלא לתיוק
+          </button>
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-bold" style={{ color: '#4A2D7F' }}>סיכום המשוב שלך – Isotopia</h1>
+          <h1 className="text-2xl font-bold" style={{ color: '#4A2D7F' }}>📄 סיכום המשוב שלך – Isotopia</h1>
+          <p className="text-xs text-gray-500">(גרסה מקוצרת — ללא פרטים פנימיים)</p>
           <p className="text-gray-700 mt-1">{review.employee?.full_name} · {review.period?.name}</p>
         </div>
 
