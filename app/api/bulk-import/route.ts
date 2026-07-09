@@ -103,6 +103,12 @@ export async function POST(req: Request) {
           continue
         }
         authId = authData.user.id
+      } else {
+        // Reused accounts can otherwise end up with whatever email/password they had
+        // from before (e.g. a partially-failed earlier run) — force both back to the
+        // expected state so the standard "log in with employee number + Isotopia2026"
+        // flow always works, same as a freshly-created account.
+        await admin.auth.admin.updateUserById(authId, { email: loginEmail, password: INITIAL_PASSWORD, email_confirm: true })
       }
       const { error: profErr } = await admin.from('profiles').upsert({
         id: authId,
