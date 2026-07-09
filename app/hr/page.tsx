@@ -331,7 +331,7 @@ function EmployeesTab() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
-  const [form, setForm] = useState({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' })
+  const [form, setForm] = useState({ full_name: '', employee_number: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [empFilter, setEmpFilter] = useState<'active' | 'inactive'>('active')
@@ -366,7 +366,7 @@ function EmployeesTab() {
     else {
       setMsg('המשתמש נוצר בהצלחה!')
       setShowAdd(false)
-      setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' })
+      setForm({ full_name: '', employee_number: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' })
       loadProfiles()
     }
     setSaving(false)
@@ -506,7 +506,7 @@ function EmployeesTab() {
         <h2 className="text-xl font-bold text-gray-800">עובדים ומנהלים</h2>
         <button
           onClick={() => {
-            if (!showAdd) { setForm({ full_name: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' }); setMsg('') }
+            if (!showAdd) { setForm({ full_name: '', employee_number: '', email: '', role: 'employee', site: 'israel', location: '', department: '', manager_id: '', password: 'Isotopia2026' }); setMsg('') }
             setShowAdd(!showAdd)
           }}
           className="px-4 py-2 rounded-xl text-white text-sm font-medium"
@@ -525,7 +525,11 @@ function EmployeesTab() {
               <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} />
             </div>
             <div>
-              <label className="text-sm text-gray-600 mb-1 block">אימייל</label>
+              <label className="text-sm text-gray-600 mb-1 block">מספר עובד</label>
+              <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" style={{ direction: 'ltr' }} value={form.employee_number} onChange={e => setForm(f => ({ ...f, employee_number: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-600 mb-1 block">אימייל (לא חובה — כניסה למערכת היא תמיד לפי מספר עובד)</label>
               <input type="email" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" style={{ direction: 'ltr' }} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
             </div>
             <div>
