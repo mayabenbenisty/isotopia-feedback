@@ -49,6 +49,7 @@ export interface Review {
   employee_response: string | null
   part_c: PartC
   approved_at: string | null
+  summary_sent_at: string | null
   created_at: string
   updated_at: string
   // joined

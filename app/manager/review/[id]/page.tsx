@@ -176,23 +176,10 @@ export default function ManagerReviewPage() {
       employee_response: review.employee_response,
     }).eq('id', id)
 
-    // Send emails
-    const html = buildEmailHTML(review, finalScore)
-    await Promise.all([
-      fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: process.env.NEXT_PUBLIC_HR_EMAIL || 'hr@isotopia.co.il', subject: `משוב הושלם: ${review.employee?.full_name}`, html }),
-      }),
-      fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: review.employee?.email, subject: `סיכום משוב – ${review.period?.name}`, html: buildEmployeeEmailHTML(review, finalScore) }),
-      }),
-    ])
-
     setSaving(false)
-    router.push('/manager')
+    // No more automatic email — manager downloads/sends the summary as a PDF instead
+    // (see /manager/review/[id]/summary), which also carries the send-it-yourself reminder.
+    router.push(`/manager/review/${id}/summary`)
   }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center" style={{ background: '#f8f5ff' }}><div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div></div>
@@ -476,7 +463,7 @@ export default function ManagerReviewPage() {
                 className="w-full py-4 rounded-2xl text-white text-lg font-bold transition-opacity disabled:opacity-60"
                 style={{ background: 'linear-gradient(135deg, #4A2D7F, #6B46C1)' }}
               >
-                {saving ? 'שולח...' : '✓ אישור המשוב ושליחה במייל'}
+                {saving ? 'שומר...' : '✓ אישור המשוב'}
               </button>
             )}
           </div>
@@ -486,55 +473,3 @@ export default function ManagerReviewPage() {
   )
 }
 
-function buildEmailHTML(review: FullReview, finalScore: number | null): string {
-  return `
-    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8f5ff; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #4A2D7F, #6B46C1); color: white; padding: 30px; border-radius: 16px; margin-bottom: 20px; text-align: center;">
-        <img src="https://isotopia-feedback.vercel.app/logo.png" alt="Isotopia" width="56" height="56" style="background:#fff;border-radius:12px;padding:6px;margin-bottom:12px;" />
-        <h1 style="margin: 0; font-size: 24px;">משוב הושלם</h1>
-        <p style="margin: 8px 0 0; opacity: 0.8;">${review.period?.name}</p>
-      </div>
-      <div style="background: white; padding: 24px; border-radius: 16px; margin-bottom: 16px;">
-        <h2 style="color: #4A2D7F; margin-top: 0;">פרטי העובד</h2>
-        <p><strong>שם:</strong> ${review.employee?.full_name}</p>
-        <p><strong>ציון סופי:</strong> ${finalScore || '—'} מתוך 3</p>
-      </div>
-      <p style="text-align: center; color: #999; font-size: 12px;">מערכת משוב והערכת עובדים | Isotopia</p>
-    </div>
-  `
-}
-
-function buildEmployeeEmailHTML(review: FullReview, finalScore: number | null): string {
-  const scores = REVIEW_CATEGORIES.map(cat => `
-    <h3 style="color: #4A2D7F;">${cat.label}</h3>
-    ${cat.items.map(item => {
-      const score = review.manager_scores[`${cat.id}__${item}`]
-      return `<p style="margin: 4px 0;"><strong>${item}:</strong> ${score !== undefined ? score : '—'}</p>`
-    }).join('')}
-  `).join('')
-
-  return `
-    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8f5ff; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #4A2D7F, #6B46C1); color: white; padding: 30px; border-radius: 16px; margin-bottom: 20px; text-align: center;">
-        <img src="https://isotopia-feedback.vercel.app/logo.png" alt="Isotopia" width="56" height="56" style="background:#fff;border-radius:12px;padding:6px;margin-bottom:12px;" />
-        <h1 style="margin: 0;">סיכום המשוב שלך</h1>
-        <p style="margin: 8px 0 0; opacity: 0.8;">${review.period?.name}</p>
-      </div>
-      <div style="background: white; padding: 24px; border-radius: 16px; margin-bottom: 16px;">
-        <h2 style="color: #4A2D7F; margin-top: 0;">שלום ${review.employee?.full_name},</h2>
-        <p>מצורף סיכום המשוב שלך לתקופה: <strong>${review.period?.name}</strong></p>
-        ${scores}
-        <h3 style="color: #4A2D7F;">שאלות פתוחות</h3>
-        ${OPEN_QUESTIONS_MANAGER.filter(q => !q.internal).map(q => {
-          const v = review.manager_open[q.id]
-          if (!v) return ''
-          const display = q.type === 'yesno' ? (v === 'yes' ? 'כן' : 'לא') : v
-          return `<p><strong>${q.label}:</strong><br/>${display}</p>`
-        }).join('')}
-        ${review.manager_summary ? `<h3 style="color: #4A2D7F;">סיכום המנהל</h3><p>${review.manager_summary}</p>` : ''}
-        <p style="margin-top: 16px; font-size: 16px;"><strong>ציון סופי:</strong> ${finalScore || '—'} מתוך 3</p>
-      </div>
-      <p style="text-align: center; color: #999; font-size: 12px;">מערכת משוב והערכת עובדים | Isotopia</p>
-    </div>
-  `
-}
