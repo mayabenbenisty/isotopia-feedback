@@ -148,6 +148,20 @@ export default function ManagerReviewPage() {
     )
   }
 
+  async function reopenForEditing() {
+    if (!review) return
+    if (!window.confirm('לפתוח מחדש את המשוב לעריכה? בסיום השינויים תצטרך/י לאשר ולהדפיס/לשלוח מחדש.')) return
+    setSaving(true)
+    const supabase = createClient()
+    await supabase.from('reviews').update({
+      status: 'in_progress',
+      approved_at: null,
+      summary_sent_at: null,
+    }).eq('id', id)
+    setSaving(false)
+    loadReview()
+  }
+
   async function approveReview() {
     if (!review) return
     const err = validate()
@@ -204,7 +218,23 @@ export default function ManagerReviewPage() {
             <div className="flex items-center gap-3 text-sm">
               {saving && <span className="opacity-70">שומר...</span>}
               {saved && <span className="text-green-300">✓ נשמר</span>}
-              {isReadonly && <span className="bg-green-500 px-3 py-1 rounded-full text-xs font-medium">הושלם</span>}
+              {isReadonly && (
+                <>
+                  <span className="bg-green-500 px-3 py-1 rounded-full text-xs font-medium">הושלם</span>
+                  <button
+                    onClick={() => router.push(`/manager/review/${id}/summary`)}
+                    className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-full text-xs font-medium"
+                  >
+                    📄 סיכום להדפסה/שליחה
+                  </button>
+                  <button
+                    onClick={reopenForEditing}
+                    className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-full text-xs font-medium"
+                  >
+                    🔓 פתיחה מחדש לעריכה
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
